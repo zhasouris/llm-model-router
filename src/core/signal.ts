@@ -162,3 +162,51 @@ export class HeuristicSignalProvider implements SignalProvider {
     };
   }
 }
+
+// --- RouteLLM provider (trained difficulty signal via Python sidecar) -------
+
+/**
+ * Difficulty signal from a RouteLLM sidecar (ADR 0006). RouteLLM answers a
+ * binary strong-vs-weak win-rate, which we map onto `complexity`; the other
+ * signals (task type, expected output, sensitivity) are backfilled from the
+ * heuristic provider — the "fast-path completeness" answer. Falls back entirely
+ * to the heuristic if the sidecar is unreachable (graceful degradation).
+ */
+export class RouteLLMProvider implements SignalProvider {
+  readonly name = "routellm";
+  private readonly heuristic: HeuristicSignalProvider;
+
+  constructor(
+    private readonly url: string,
+    private readonly maxChars = 8000,
+    private readonly timeoutMs = 5000,
+  ) {
+    this.heuristic = new HeuristicSignalProvider(this.maxChars);
+  }
+
+  async analyze(req: RoutingRequest): Promise<ClassifierResult> {
+    const base = await this.heuristic.analyze(req);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), this.timeoutMs);
+    try {
+      const resp = await fetch(`${this.url}/score`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: promptText(req, this.maxChars) }),
+        signal: ac.signal,
+      });
+      const { winRate } = (await resp.json()) as { winRate: number };
+      // Win-rate = P(strong model needed) → our difficulty signal.
+      return {
+        ...base,
+        complexity: clamp01(winRate),
+        reasoningDepth: clamp01(winRate * 0.8),
+      };
+    } catch (err) {
+      console.warn("routellm sidecar unavailable, using heuristic:", (err as Error).message);
+      return { ...base, degraded: true };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}

@@ -1,0 +1,4 @@
+routellm[serve]
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pandas>=2.0
