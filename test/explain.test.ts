@@ -85,11 +85,11 @@ describe("/v1/router/explain + /demo", () => {
     expect(html).toContain("cost-vision");
   });
 
-  it("explains a request as JSON (auth-guarded)", async () => {
+  it("explains a request as JSON WITHOUT a proxy key (demo endpoint is unauthenticated)", async () => {
     const app = createApp(deps());
     const res = await app.request("/v1/router/explain", {
       method: "POST",
-      headers: { Authorization: "Bearer test-key", "content-type": "application/json", "X-Router-Strategy": "cost" },
+      headers: { "content-type": "application/json", "X-Router-Strategy": "cost" },
       body: JSON.stringify({ messages: [{ role: "user", content: "Prove sqrt 2 is irrational" }] }),
     });
     expect(res.status).toBe(200);
@@ -98,12 +98,8 @@ describe("/v1/router/explain + /demo", () => {
     expect(json.ranked.length).toBeGreaterThan(0);
   });
 
-  it("rejects unauthenticated explain calls", async () => {
-    const res = await createApp(deps()).request("/v1/router/explain", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
-    });
+  it("keeps the rest of /v1 auth-guarded (models requires a key)", async () => {
+    const res = await createApp(deps()).request("/v1/models");
     expect(res.status).toBe(401);
   });
 });

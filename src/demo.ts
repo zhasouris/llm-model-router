@@ -118,7 +118,6 @@ export function demoHtml(presets: Preset[]): string {
             <option value="latency">latency</option>
           </select>
         </label>
-        <input class="key" id="key" type="password" placeholder="Proxy API key (only if auth is enabled)" />
         <button class="go" id="go">Inspect routing</button>
       </div>
       <div id="out"></div>
@@ -204,12 +203,10 @@ export function demoHtml(presets: Preset[]): string {
     var prompt = document.getElementById('prompt').value;
     if (!bodyOverride && !prompt.trim()) { return; }
     var strategy = document.getElementById('strategy').value;
-    var key = document.getElementById('key').value.trim();
     btn.disabled = true;
     out.innerHTML = '<div class="card muted">Inspecting…</div>';
     try {
       var headers = { 'Content-Type': 'application/json', 'X-Router-Strategy': strategy };
-      if (key) headers['Authorization'] = 'Bearer ' + key;
       var res = await fetch('/v1/router/explain', {
         method: 'POST', headers: headers,
         body: JSON.stringify(bodyOverride || { messages: [{ role: 'user', content: prompt }] })

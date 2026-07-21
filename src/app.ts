@@ -56,19 +56,10 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
   app.get("/openapi.json", (c) => c.json(openApiSpec));
   app.get("/docs", swaggerUI({ url: "/openapi.json" }));
 
-  // Auth guards the /v1 surface.
-  app.use("/v1/*", makeAuth(config));
-
-  app.get("/v1/models", (c) =>
-    c.json({
-      object: "list",
-      data: config.catalog.map((m) => ({ id: m.id, object: "model", owned_by: m.provider })),
-    }),
-  );
-
-  // Decision-inspector demo (page + explain endpoint). Runs the pipeline but
-  // never forwards to a provider. The explain endpoint sits under /v1/* so it's
-  // auth-guarded; the page itself is static.
+  // Decision-inspector demo (page + explain endpoint). Registered BEFORE the
+  // /v1 auth guard so it works with only the server-side classifier key — no
+  // proxy key needed. It runs the pipeline for inspection but NEVER forwards a
+  // completion, and is gated by demo.enabled (turn off in production).
   if (config.server.demo.enabled) {
     const cls = config.server.classifier;
     const hasClassifierKey =
@@ -101,6 +92,16 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
       return c.json(await router.explain(req));
     });
   }
+
+  // Auth guards the rest of the /v1 surface (models, chat completions).
+  app.use("/v1/*", makeAuth(config));
+
+  app.get("/v1/models", (c) =>
+    c.json({
+      object: "list",
+      data: config.catalog.map((m) => ({ id: m.id, object: "model", owned_by: m.provider })),
+    }),
+  );
 
   app.post("/v1/chat/completions", async (c) => {
     let raw: Record<string, unknown>;
