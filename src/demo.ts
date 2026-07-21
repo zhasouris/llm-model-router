@@ -16,7 +16,8 @@ export interface Preset {
   label: string;
   strategy: string;
   prompt: string;
-  body: unknown;
+  bypass: boolean;
+  body: any;
 }
 
 /** Load the gold dataset as demo presets. Best-effort — returns [] if absent. */
@@ -41,6 +42,7 @@ export function loadPresets(): Preset[] {
           label: (g.note as string) || (g.id as string),
           strategy: (g.strategy as string) || "balanced",
           prompt,
+          bypass: Boolean(g.bypass),
           body: g.request,
         };
       });
@@ -49,8 +51,11 @@ export function loadPresets(): Preset[] {
   }
 }
 
-export function demoHtml(presets: Preset[]): string {
+export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
   const presetsJson = JSON.stringify(presets).replace(/</g, "\\u003c");
+  const modelOptions = ['<option value="auto">auto (let the router decide)</option>']
+    .concat(modelIds.map((m) => `<option value="${m}">${m}</option>`))
+    .join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -118,6 +123,9 @@ export function demoHtml(presets: Preset[]): string {
             <option value="latency">latency</option>
           </select>
         </label>
+        <label>Force model
+          <select id="force">${modelOptions}</select>
+        </label>
         <button class="go" id="go">Inspect routing</button>
       </div>
       <div id="out"></div>
@@ -143,6 +151,14 @@ export function demoHtml(presets: Preset[]): string {
         '</div>';
       return;
     }
+    if (data.bypassed) {
+      out.innerHTML = '<div class="card banner">Forced to <b>' + esc(data.decision ? data.decision.model : '-') + '</b> ' +
+        (data.decision ? '<span class="muted">(' + esc(data.decision.provider) + ')</span>' : '') +
+        '<br><span class="muted">routing skipped (X-Router-Bypass) — the model is used verbatim</span></div>' +
+        '<details><summary>Raw JSON</summary><pre>' + esc(JSON.stringify(data, null, 2)) + '</pre></details>';
+      return;
+    }
+
     var html = '';
 
     if (data.decision) {
@@ -216,13 +232,19 @@ export function demoHtml(presets: Preset[]): string {
     var prompt = document.getElementById('prompt').value;
     if (!bodyOverride && !prompt.trim()) { return; }
     var strategy = document.getElementById('strategy').value;
+    var force = document.getElementById('force').value;
+    var body = bodyOverride || { messages: [{ role: 'user', content: prompt }] };
+    var headers = { 'Content-Type': 'application/json', 'X-Router-Strategy': strategy };
+    // Force a specific model: pin it in the body and bypass routing.
+    if (force && force !== 'auto') {
+      body = Object.assign({}, body, { model: force });
+      headers['X-Router-Bypass'] = 'true';
+    }
     btn.disabled = true;
     out.innerHTML = '<div class="card muted">Inspecting…</div>';
     try {
-      var headers = { 'Content-Type': 'application/json', 'X-Router-Strategy': strategy };
       var res = await fetch('/v1/router/explain', {
-        method: 'POST', headers: headers,
-        body: JSON.stringify(bodyOverride || { messages: [{ role: 'user', content: prompt }] })
+        method: 'POST', headers: headers, body: JSON.stringify(body)
       });
       var data = await res.json();
       render(data, res.status);
@@ -236,6 +258,7 @@ export function demoHtml(presets: Preset[]): string {
   function runPreset(p) {
     document.getElementById('prompt').value = p.prompt;
     document.getElementById('strategy').value = p.strategy;
+    document.getElementById('force').value = (p.bypass && p.body && p.body.model) ? p.body.model : 'auto';
     submit(p.body);
   }
 

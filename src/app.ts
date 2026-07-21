@@ -72,7 +72,8 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
     }
 
     const presets = loadPresets();
-    app.get("/demo", (c) => c.html(demoHtml(presets)));
+    const modelIds = config.catalog.map((m) => m.id);
+    app.get("/demo", (c) => c.html(demoHtml(presets, modelIds)));
 
     app.post("/v1/router/explain", async (c) => {
       let raw: Record<string, unknown>;
@@ -102,7 +103,7 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
         winRate?: number;
         confidence?: number;
       } = { enabled: rlEnabled, available: false };
-      if (rlEnabled) {
+      if (rlEnabled && !result.bypassed) {
         const url = process.env.ROUTELLM_URL ?? rl.url;
         const score = await fetchRouteLLMScore(url, promptText(req, 8000));
         if (score) {

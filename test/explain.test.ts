@@ -42,6 +42,17 @@ describe("Router.explain", () => {
     expect(r.excluded).toHaveLength(0);
   });
 
+  it("forces a model when bypass is set (routing skipped)", async () => {
+    const req = request({ messages: [{ role: "user", content: "hi" }], model: "claude-sonnet-5" });
+    req.options.bypass = true;
+    const r = await router().explain(req);
+    expect(r.bypassed).toBe(true);
+    expect(r.decision?.model).toBe("claude-sonnet-5");
+    expect(r.decision?.provider).toBe("anthropic");
+    expect(r.ranked).toHaveLength(0);
+    expect(r.classifier).toBeNull();
+  });
+
   it("excludes non-vision models with a reason for an image request", async () => {
     const body = {
       messages: [
@@ -83,6 +94,9 @@ describe("/v1/router/explain + /demo", () => {
     expect(html).toContain("Gold presets");
     // A gold-query id should be embedded as a preset.
     expect(html).toContain("cost-vision");
+    // The force-model control + catalog options are present.
+    expect(html).toContain("Force model");
+    expect(html).toContain("gpt-4.1-nano");
   });
 
   it("explains a request as JSON WITHOUT a proxy key (demo endpoint is unauthenticated)", async () => {

@@ -157,6 +157,37 @@ export class Router {
    */
   async explain(req: RoutingRequest): Promise<ExplainResult> {
     Object.assign(req, detectRequirements(req.body));
+    const detected = {
+      requiresVision: req.requiresVision,
+      requiresTools: req.requiresTools,
+      requiresStructuredOutput: req.requiresStructuredOutput,
+      requiresAudio: req.requiresAudio,
+    };
+
+    // Forced model: bypass routing entirely and report the chosen model.
+    if (req.options.bypass) {
+      const modelId = req.body.model ?? "";
+      return {
+        strategy: req.options.strategy,
+        bypassed: true,
+        detected,
+        inputTokens: 0,
+        classifier: null,
+        features: {},
+        eligible: [],
+        excluded: [],
+        ranked: [],
+        decision: modelId
+          ? {
+              model: modelId,
+              provider: this.providerFor(modelId),
+              reason: "forced (bypass — routing skipped)",
+            }
+          : null,
+        warnings: req.options.warnings,
+      };
+    }
+
     const analysis = await this.analyzeFn(req);
 
     const eligibleModels = filterCandidates(this.catalog, ALL_CONSTRAINTS, req, analysis);
@@ -195,12 +226,8 @@ export class Router {
     const top = scored[0];
     return {
       strategy: req.options.strategy,
-      detected: {
-        requiresVision: req.requiresVision,
-        requiresTools: req.requiresTools,
-        requiresStructuredOutput: req.requiresStructuredOutput,
-        requiresAudio: req.requiresAudio,
-      },
+      bypassed: false,
+      detected,
       inputTokens: analysis.inputTokens,
       classifier: analysis.classifier,
       features: analysis.features,
@@ -221,6 +248,8 @@ export class Router {
 
 export interface ExplainResult {
   strategy: Strategy;
+  /** True when a model was forced via bypass (routing skipped). */
+  bypassed: boolean;
   detected: {
     requiresVision: boolean;
     requiresTools: boolean;
@@ -228,7 +257,7 @@ export interface ExplainResult {
     requiresAudio: boolean;
   };
   inputTokens: number;
-  classifier: ClassifierResult;
+  classifier: ClassifierResult | null;
   features: Record<string, FeatureScore>;
   eligible: string[];
   excluded: { model: string; failedConstraints: string[] }[];
