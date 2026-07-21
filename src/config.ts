@@ -20,6 +20,9 @@ function configDir(): string {
 const providerSchema = z.object({
   base_url: z.string().url(),
   api_key_env: z.string(),
+  // Vendor transformer (ADR 0001). Defaults to `openai` (passthrough — OpenAI +
+  // all OpenAI-compatible vendors). Native adapters: e.g. `anthropic`.
+  adapter: z.string().default("openai"),
 });
 
 const serverSchema = z.object({

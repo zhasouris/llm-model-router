@@ -40,9 +40,12 @@ providers:
     base_url: https://api.openai.com/v1
     api_key_env: OPENAI_API_KEY
   anthropic:
-    # v1 reaches Claude via Anthropic's OpenAI-compatible endpoint (ADR 0001).
+    # Native Anthropic Messages API via the `anthropic` transformer (ADR 0001):
+    # base_url + /messages. Set adapter back to `openai` to use Anthropic's
+    # OpenAI-compatible endpoint instead.
     base_url: https://api.anthropic.com/v1
     api_key_env: ANTHROPIC_API_KEY
+    adapter: anthropic
   # Additional vendors, all reached via their OpenAI-compatible endpoints (ADR
   # 0001). Set the matching key in .env to actually route to them; models stay
   # in the catalog for inspection either way.

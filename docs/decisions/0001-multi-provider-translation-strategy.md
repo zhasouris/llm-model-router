@@ -91,10 +91,16 @@ native provider adapters later is an *additive* change, not a rewrite.
 
 ## Follow-ups / TODO
 
-- [ ] Design the canonical request/response IR (superset across providers).
-- [ ] Build native inbound/outbound adapters (OpenAI, Anthropic) against the IR.
+The transformer/adapter seam is now implemented — see
+[`docs/transformers.md`](../transformers.md) for the live status checklist.
+
+- [x] Adapter seam (`ProviderAdapter`: buildRequest / parseResponse / transformStream)
+      with a `passthrough` adapter formalizing the OpenAI-compat path.
+- [x] Native **Anthropic** Messages-API adapter (the reference), wired as the default
+      for the Anthropic provider; fixture-tested.
+- [ ] Native adapters for Google Gemini, Cohere, and the other vendors (future branches).
 - [ ] Add adapters for self-hosted / Ollama models.
-- [ ] Replace v1's Anthropic-via-OpenAI-compat path with the native Anthropic adapter.
+- [ ] A richer canonical IR if/when a vendor can't be expressed as OpenAI-in/out.
 
 ## Related decisions (settled context, not yet separate ADRs)
 
