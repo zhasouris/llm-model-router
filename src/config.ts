@@ -35,6 +35,8 @@ const serverSchema = z.object({
     })
     .default({}),
   providers: z.record(providerSchema),
+  // The /demo decision-inspector page + /v1/router/explain endpoint.
+  demo: z.object({ enabled: z.boolean().default(true) }).default({}),
   telemetry: z
     .object({
       service_name: z.string().default("llm-model-router"),

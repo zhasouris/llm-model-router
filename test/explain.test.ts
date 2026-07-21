@@ -1,0 +1,105 @@
+/**
+ * Decision inspector — Router.explain(), the /v1/router/explain endpoint, and
+ * the /demo page. Hermetic (heuristic signal, no network).
+ */
+
+import { beforeAll, describe, expect, it } from "vitest";
+
+process.env.ROUTER_API_KEYS = "test-key";
+
+import { createApp, type AppDeps } from "../src/app.js";
+import { getConfig, resetConfigCache } from "../src/config.js";
+import { makeAnalyze } from "../src/core/analysis.js";
+import { Router } from "../src/core/router.js";
+import { HeuristicSignalProvider } from "../src/core/signal.js";
+import type { RoutingRequest } from "../src/types.js";
+import type { UpstreamResponse } from "../src/providers/forwarder.js";
+
+function router(): Router {
+  return new Router(getConfig(), makeAnalyze(new HeuristicSignalProvider()));
+}
+
+function request(body: RoutingRequest["body"], strategy: RoutingRequest["options"]["strategy"] = "balanced"): RoutingRequest {
+  return {
+    body,
+    options: { strategy, bypass: false, maxCost: null, warnings: [] },
+    requiresVision: false,
+    requiresTools: false,
+    requiresStructuredOutput: false,
+    requiresAudio: false,
+  };
+}
+
+beforeAll(() => resetConfigCache());
+
+describe("Router.explain", () => {
+  it("returns the full decision trace for a text request", async () => {
+    const r = await router().explain(request({ messages: [{ role: "user", content: "Say hi" }] }));
+    expect(r.decision).not.toBeNull();
+    expect(r.ranked.length).toBeGreaterThan(0);
+    expect(r.classifier).toBeDefined();
+    expect(r.eligible.length).toBe(getConfig().catalog.length); // text-only: all eligible
+    expect(r.excluded).toHaveLength(0);
+  });
+
+  it("excludes non-vision models with a reason for an image request", async () => {
+    const body = {
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "what is this" },
+            { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+          ],
+        },
+      ],
+    };
+    const r = await router().explain(request(body));
+    expect(r.detected.requiresVision).toBe(true);
+    // The catalog's non-vision models (gpt-4.1-nano, o4-mini) must be excluded.
+    const excludedIds = r.excluded.map((e) => e.model);
+    expect(excludedIds).toContain("gpt-4.1-nano");
+    const nano = r.excluded.find((e) => e.model === "gpt-4.1-nano")!;
+    expect(nano.failedConstraints).toContain("vision");
+    expect(r.eligible).not.toContain("gpt-4.1-nano");
+  });
+});
+
+describe("/v1/router/explain + /demo", () => {
+  function deps(): AppDeps {
+    const dummy = {
+      async forward(): Promise<UpstreamResponse> {
+        return { status: 200, headers: {}, body: "{}" };
+      },
+    };
+    return { config: getConfig(), router: router(), forwarder: dummy };
+  }
+
+  it("serves the demo page", async () => {
+    const res = await createApp(deps()).request("/demo");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("Router decision inspector");
+  });
+
+  it("explains a request as JSON (auth-guarded)", async () => {
+    const app = createApp(deps());
+    const res = await app.request("/v1/router/explain", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "content-type": "application/json", "X-Router-Strategy": "cost" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Prove sqrt 2 is irrational" }] }),
+    });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { decision: unknown; ranked: unknown[] };
+    expect(json.decision).not.toBeNull();
+    expect(json.ranked.length).toBeGreaterThan(0);
+  });
+
+  it("rejects unauthenticated explain calls", async () => {
+    const res = await createApp(deps()).request("/v1/router/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    });
+    expect(res.status).toBe(401);
+  });
+});

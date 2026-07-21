@@ -21,6 +21,12 @@ classifier:
   # classifier, to bound its cost/latency.
   max_input_chars: 8000
 
+# The /demo decision-inspector page and /v1/router/explain endpoint. The demo
+# needs the classifier key (CLASSIFIER_API_KEY) to show real signals. Turn off
+# in production if you don't want the inspector exposed.
+demo:
+  enabled: true
+
 providers:
   openai:
     base_url: https://api.openai.com/v1

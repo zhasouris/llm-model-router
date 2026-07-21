@@ -8,6 +8,8 @@ import { Hono } from "hono";
 import { makeAuth } from "./auth.js";
 import { getConfig, type AppConfig } from "./config.js";
 import { NoEligibleModelError, Router } from "./core/router.js";
+import { demoHtml } from "./demo.js";
+import { logWarn } from "./logger.js";
 import {
   H_MODEL,
   H_REASON,
@@ -63,6 +65,41 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
       data: config.catalog.map((m) => ({ id: m.id, object: "model", owned_by: m.provider })),
     }),
   );
+
+  // Decision-inspector demo (page + explain endpoint). Runs the pipeline but
+  // never forwards to a provider. The explain endpoint sits under /v1/* so it's
+  // auth-guarded; the page itself is static.
+  if (config.server.demo.enabled) {
+    const cls = config.server.classifier;
+    const hasClassifierKey =
+      config.secrets.classifierApiKey ?? config.resolveApiKey(cls.provider, cls.model);
+    if (cls.enabled && !hasClassifierKey) {
+      logWarn("demo enabled but no classifier API key configured — signals will be degraded", {
+        hint: "set CLASSIFIER_API_KEY",
+      });
+    }
+
+    app.get("/demo", (c) => c.html(demoHtml));
+
+    app.post("/v1/router/explain", async (c) => {
+      let raw: Record<string, unknown>;
+      try {
+        raw = (await c.req.json()) as Record<string, unknown>;
+      } catch {
+        return errorResponse("invalid JSON body", 400, "invalid_request_error");
+      }
+      const options = parseOptions((n) => c.req.header(n), config.server.default_strategy);
+      const req: RoutingRequest = {
+        body: raw,
+        options,
+        requiresVision: false,
+        requiresTools: false,
+        requiresStructuredOutput: false,
+        requiresAudio: false,
+      };
+      return c.json(await router.explain(req));
+    });
+  }
 
   app.post("/v1/chat/completions", async (c) => {
     let raw: Record<string, unknown>;
