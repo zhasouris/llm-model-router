@@ -1,13 +1,57 @@
 /**
  * The /demo decision-inspector page (served by the API itself). A prompt box +
- * strategy selector; on submit it POSTs to /v1/router/explain and renders the
- * router's decision trace human-readably. It never runs the actual completion.
+ * strategy selector + a sidebar of gold-query presets; on submit it POSTs to
+ * /v1/router/explain and renders the router's decision trace human-readably. It
+ * never runs the actual completion.
  *
  * Self-contained HTML (inline CSS/JS). The inner script uses string
  * concatenation (no template literals) to avoid clashing with this outer one.
  */
 
-export const demoHtml = `<!doctype html>
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export interface Preset {
+  id: string;
+  label: string;
+  strategy: string;
+  prompt: string;
+  body: unknown;
+}
+
+/** Load the gold dataset as demo presets. Best-effort — returns [] if absent. */
+export function loadPresets(): Preset[] {
+  try {
+    const path = join(process.cwd(), "eval", "datasets", "gold.jsonl");
+    return readFileSync(path, "utf-8")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as Record<string, any>)
+      .map((g) => {
+        const content = g.request?.messages?.[0]?.content;
+        let prompt = "";
+        if (typeof content === "string") prompt = content;
+        else if (Array.isArray(content)) {
+          const part = content.find((p: any) => typeof p?.text === "string");
+          prompt = part ? part.text : "(non-text request)";
+        }
+        return {
+          id: g.id as string,
+          label: (g.note as string) || (g.id as string),
+          strategy: (g.strategy as string) || "balanced",
+          prompt,
+          body: g.request,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
+export function demoHtml(presets: Preset[]): string {
+  const presetsJson = JSON.stringify(presets).replace(/</g, "\\u003c");
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -15,17 +59,27 @@ export const demoHtml = `<!doctype html>
 <title>llm-model-router — decision inspector</title>
 <style>
   :root { color-scheme: light dark; }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px;
-    margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1120px;
+    margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; }
   h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
   .sub { opacity: 0.7; margin-top: 0; font-size: 0.9rem; }
+  .layout { display: flex; gap: 1.25rem; align-items: flex-start; }
+  .sidebar { width: 260px; flex-shrink: 0; }
+  .main { flex: 1; min-width: 0; }
+  .sidebar h2 { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+  button.preset { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+    width: 100%; text-align: left; margin: 0.3rem 0; padding: 0.5rem 0.6rem; border: 1px solid #8883;
+    border-radius: 6px; background: transparent; cursor: pointer; font: inherit; }
+  button.preset:hover { background: #7c3aed18; border-color: #7c3aed88; }
+  .preset .pl { font-size: 0.82rem; }
+  .chip { font-size: 0.68rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: #8883; white-space: nowrap; }
   textarea { width: 100%; min-height: 90px; font: inherit; padding: 0.6rem; box-sizing: border-box; }
   .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.6rem 0; }
   label { font-size: 0.85rem; opacity: 0.8; }
   select, input { font: inherit; padding: 0.35rem; }
-  input.key { flex: 1; min-width: 180px; }
-  button { font: inherit; padding: 0.5rem 1.1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8888; }
-  button:disabled { opacity: 0.5; cursor: wait; }
+  input.key { flex: 1; min-width: 160px; }
+  button.go { font: inherit; padding: 0.5rem 1.1rem; cursor: pointer; border-radius: 6px; border: 1px solid #8888; }
+  button.go:disabled { opacity: 0.5; cursor: wait; }
   .card { border: 1px solid #8883; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0; }
   .banner { font-size: 1.1rem; }
   .banner b { font-size: 1.25rem; }
@@ -40,29 +94,39 @@ export const demoHtml = `<!doctype html>
   details { margin-top: 0.6rem; }
   pre { overflow-x: auto; background: #8881; padding: 0.6rem; border-radius: 6px; font-size: 0.8rem; }
   .err { color: #b91c1c; }
+  @media (max-width: 760px) { .layout { flex-direction: column; } .sidebar { width: auto; } }
 </style>
 </head>
 <body>
   <h1>Router decision inspector</h1>
-  <p class="sub">Submit a prompt to see how the router would route it — no completion is run.</p>
+  <p class="sub">Submit a prompt — or click a gold preset — to see how the router would route it. No completion is run.</p>
 
-  <textarea id="prompt" placeholder="Type a request, e.g. 'Prove the square root of 2 is irrational'"></textarea>
-  <div class="row">
-    <label>Strategy
-      <select id="strategy">
-        <option value="balanced">balanced</option>
-        <option value="cost">cost</option>
-        <option value="quality">quality</option>
-        <option value="latency">latency</option>
-      </select>
-    </label>
-    <input class="key" id="key" type="password" placeholder="Proxy API key (only if auth is enabled)" />
-    <button id="go">Inspect routing</button>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Gold presets</h2>
+      <div id="presets"></div>
+    </aside>
+
+    <main class="main">
+      <textarea id="prompt" placeholder="Type a request, e.g. 'Prove the square root of 2 is irrational'"></textarea>
+      <div class="row">
+        <label>Strategy
+          <select id="strategy">
+            <option value="balanced">balanced</option>
+            <option value="cost">cost</option>
+            <option value="quality">quality</option>
+            <option value="latency">latency</option>
+          </select>
+        </label>
+        <input class="key" id="key" type="password" placeholder="Proxy API key (only if auth is enabled)" />
+        <button class="go" id="go">Inspect routing</button>
+      </div>
+      <div id="out"></div>
+    </main>
   </div>
 
-  <div id="out"></div>
-
 <script>
+  var PRESETS = ${presetsJson};
   var btn = document.getElementById('go');
   var out = document.getElementById('out');
 
@@ -136,9 +200,9 @@ export const demoHtml = `<!doctype html>
     out.innerHTML = html;
   }
 
-  async function submit() {
+  async function submit(bodyOverride) {
     var prompt = document.getElementById('prompt').value;
-    if (!prompt.trim()) { return; }
+    if (!bodyOverride && !prompt.trim()) { return; }
     var strategy = document.getElementById('strategy').value;
     var key = document.getElementById('key').value.trim();
     btn.disabled = true;
@@ -148,7 +212,7 @@ export const demoHtml = `<!doctype html>
       if (key) headers['Authorization'] = 'Bearer ' + key;
       var res = await fetch('/v1/router/explain', {
         method: 'POST', headers: headers,
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] })
+        body: JSON.stringify(bodyOverride || { messages: [{ role: 'user', content: prompt }] })
       });
       var data = await res.json();
       render(data, res.status);
@@ -159,7 +223,27 @@ export const demoHtml = `<!doctype html>
     }
   }
 
-  btn.addEventListener('click', submit);
+  function runPreset(p) {
+    document.getElementById('prompt').value = p.prompt;
+    document.getElementById('strategy').value = p.strategy;
+    submit(p.body);
+  }
+
+  (function renderPresets() {
+    var box = document.getElementById('presets');
+    if (!PRESETS.length) { box.innerHTML = '<p class="muted">none found</p>'; return; }
+    PRESETS.forEach(function (p) {
+      var b = document.createElement('button');
+      b.className = 'preset';
+      b.title = p.id;
+      b.innerHTML = '<span class="pl">' + esc(p.label) + '</span><span class="chip">' + esc(p.strategy) + '</span>';
+      b.addEventListener('click', function () { runPreset(p); });
+      box.appendChild(b);
+    });
+  })();
+
+  btn.addEventListener('click', function () { submit(); });
 </script>
 </body>
 </html>`;
+}

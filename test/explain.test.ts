@@ -75,10 +75,14 @@ describe("/v1/router/explain + /demo", () => {
     return { config: getConfig(), router: router(), forwarder: dummy };
   }
 
-  it("serves the demo page", async () => {
+  it("serves the demo page with gold presets", async () => {
     const res = await createApp(deps()).request("/demo");
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("Router decision inspector");
+    const html = await res.text();
+    expect(html).toContain("Router decision inspector");
+    expect(html).toContain("Gold presets");
+    // A gold-query id should be embedded as a preset.
+    expect(html).toContain("cost-vision");
   });
 
   it("explains a request as JSON (auth-guarded)", async () => {

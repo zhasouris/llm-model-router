@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { makeAuth } from "./auth.js";
 import { getConfig, type AppConfig } from "./config.js";
 import { NoEligibleModelError, Router } from "./core/router.js";
-import { demoHtml } from "./demo.js";
+import { demoHtml, loadPresets } from "./demo.js";
 import { logWarn } from "./logger.js";
 import {
   H_MODEL,
@@ -79,7 +79,8 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
       });
     }
 
-    app.get("/demo", (c) => c.html(demoHtml));
+    const presets = loadPresets();
+    app.get("/demo", (c) => c.html(demoHtml(presets)));
 
     app.post("/v1/router/explain", async (c) => {
       let raw: Record<string, unknown>;

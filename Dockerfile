@@ -11,6 +11,8 @@ COPY tsconfig.json ./
 COPY src ./src
 # Non-secret runtime config; secrets are injected via env at run time.
 COPY config ./config
+# Gold dataset — served as the /demo page presets.
+COPY eval/datasets ./eval/datasets
 
 EXPOSE 8000
 
