@@ -178,6 +178,42 @@ export class HeuristicSignalProvider implements SignalProvider {
  * heuristic provider — the "fast-path completeness" answer. Falls back entirely
  * to the heuristic if the sidecar is unreachable (graceful degradation).
  */
+export interface RouteLLMScore {
+  winRate: number;
+  confidence: number;
+}
+
+/** Fetch the raw RouteLLM win-rate from the sidecar. Returns null if the sidecar
+ *  is unreachable, times out, or replies unexpectedly (graceful). */
+export async function fetchRouteLLMScore(
+  url: string,
+  prompt: string,
+  timeoutMs = 5000,
+): Promise<RouteLLMScore | null> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const resp = await fetch(`${url.replace(/\/$/, "")}/score`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt }),
+      signal: ac.signal,
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as { winRate?: number; confidence?: number };
+    if (typeof data.winRate !== "number") return null;
+    return {
+      winRate: data.winRate,
+      confidence:
+        typeof data.confidence === "number" ? data.confidence : Math.abs(data.winRate - 0.5) * 2,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class RouteLLMProvider implements SignalProvider {
   readonly name = "routellm";
   private readonly heuristic: HeuristicSignalProvider;
@@ -192,29 +228,16 @@ export class RouteLLMProvider implements SignalProvider {
 
   async analyze(req: RoutingRequest): Promise<ClassifierResult> {
     const base = await this.heuristic.analyze(req);
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), this.timeoutMs);
-    try {
-      const resp = await fetch(`${this.url}/score`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: promptText(req, this.maxChars) }),
-        signal: ac.signal,
-      });
-      const { winRate } = (await resp.json()) as { winRate: number };
-      // Win-rate = P(strong model needed) → our difficulty signal.
-      return {
-        ...base,
-        complexity: clamp01(winRate),
-        reasoningDepth: clamp01(winRate * 0.8),
-      };
-    } catch (err) {
-      logWarn("routellm sidecar unavailable, using heuristic", {
-        error: (err as Error).message,
-      });
+    const score = await fetchRouteLLMScore(this.url, promptText(req, this.maxChars), this.timeoutMs);
+    if (!score) {
+      logWarn("routellm sidecar unavailable, using heuristic", { url: this.url });
       return { ...base, degraded: true };
-    } finally {
-      clearTimeout(timer);
     }
+    // Win-rate = P(strong model needed) → our difficulty signal.
+    return {
+      ...base,
+      complexity: clamp01(score.winRate),
+      reasoningDepth: clamp01(score.winRate * 0.8),
+    };
   }
 }

@@ -164,6 +164,19 @@ export function demoHtml(presets: Preset[]): string {
       '<div>signal source</div><div>' + (c.degraded ? '<span class="warn">degraded (heuristic defaults — is the classifier key set?)</span>' : 'classifier') + '</div>' +
       '</div></div>';
 
+    var rl = data.routellm;
+    if (rl) {
+      var rlBody;
+      if (!rl.enabled) {
+        rlBody = '<span class="muted">disabled — enable <code>routellm</code> in server.yaml and run the sidecar</span>';
+      } else if (rl.available) {
+        rlBody = 'win-rate <b>' + pct(rl.winRate) + '</b> <span class="muted">(P a strong model is needed)</span> · confidence ' + pct(rl.confidence);
+      } else {
+        rlBody = '<span class="warn">sidecar unavailable</span>';
+      }
+      html += '<div class="card"><h3>RouteLLM (learned signal)</h3>' + rlBody + '</div>';
+    }
+
     var d = data.detected || {};
     var reqs = [];
     if (d.requiresVision) reqs.push('vision');

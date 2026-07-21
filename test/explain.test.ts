@@ -93,9 +93,16 @@ describe("/v1/router/explain + /demo", () => {
       body: JSON.stringify({ messages: [{ role: "user", content: "Prove sqrt 2 is irrational" }] }),
     });
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { decision: unknown; ranked: unknown[] };
+    const json = (await res.json()) as {
+      decision: unknown;
+      ranked: unknown[];
+      routellm: { enabled: boolean; available: boolean };
+    };
     expect(json.decision).not.toBeNull();
     expect(json.ranked.length).toBeGreaterThan(0);
+    // RouteLLM shadow signal is present (disabled by default in config).
+    expect(json.routellm).toBeDefined();
+    expect(json.routellm.enabled).toBe(false);
   });
 
   it("keeps the rest of /v1 auth-guarded (models requires a key)", async () => {

@@ -27,6 +27,14 @@ classifier:
 demo:
   enabled: true
 
+# RouteLLM sidecar (ADR 0006). When enabled, the demo shows RouteLLM's win-rate
+# alongside the classifier signal (shadow comparison). Requires the Python
+# sidecar running at `url` (see sidecar/README.md). URL can be overridden with
+# the ROUTELLM_URL env var.
+routellm:
+  enabled: false
+  url: http://localhost:8001
+
 providers:
   openai:
     base_url: https://api.openai.com/v1

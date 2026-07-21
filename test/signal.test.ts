@@ -3,8 +3,26 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RouteLLMProvider } from "../src/core/signal.js";
+import { fetchRouteLLMScore, RouteLLMProvider } from "../src/core/signal.js";
 import { makeRequest } from "./helpers.js";
+
+describe("fetchRouteLLMScore", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns the win-rate + confidence from the sidecar", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ winRate: 0.82, confidence: 0.64 }))),
+    );
+    const s = await fetchRouteLLMScore("http://sidecar:8001", "hard prompt");
+    expect(s).toEqual({ winRate: 0.82, confidence: 0.64 });
+  });
+
+  it("returns null when the sidecar is unreachable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ECONNREFUSED"); }));
+    expect(await fetchRouteLLMScore("http://sidecar:8001", "x", 50)).toBeNull();
+  });
+});
 
 describe("RouteLLMProvider", () => {
   afterEach(() => vi.unstubAllGlobals());

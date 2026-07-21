@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { makeAuth } from "./auth.js";
 import { getConfig, type AppConfig } from "./config.js";
 import { NoEligibleModelError, Router } from "./core/router.js";
+import { fetchRouteLLMScore, promptText } from "./core/signal.js";
 import { demoHtml, loadPresets } from "./demo.js";
 import { logWarn } from "./logger.js";
 import {
@@ -89,7 +90,25 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
         requiresStructuredOutput: false,
         requiresAudio: false,
       };
-      return c.json(await router.explain(req));
+      const result = await router.explain(req);
+
+      // Shadow RouteLLM signal (best-effort; shown alongside the classifier).
+      const rl = config.server.routellm;
+      let routellm: {
+        enabled: boolean;
+        available: boolean;
+        winRate?: number;
+        confidence?: number;
+      } = { enabled: rl.enabled, available: false };
+      if (rl.enabled) {
+        const url = process.env.ROUTELLM_URL ?? rl.url;
+        const score = await fetchRouteLLMScore(url, promptText(req, 8000));
+        if (score) {
+          routellm = { enabled: true, available: true, winRate: score.winRate, confidence: score.confidence };
+        }
+      }
+
+      return c.json({ ...result, routellm });
     });
   }
 

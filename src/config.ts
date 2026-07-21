@@ -37,6 +37,13 @@ const serverSchema = z.object({
   providers: z.record(providerSchema),
   // The /demo decision-inspector page + /v1/router/explain endpoint.
   demo: z.object({ enabled: z.boolean().default(true) }).default({}),
+  // RouteLLM sidecar (ADR 0006) — surfaced as a shadow signal in the demo.
+  routellm: z
+    .object({
+      enabled: z.boolean().default(false),
+      url: z.string().default("http://localhost:8001"),
+    })
+    .default({}),
   telemetry: z
     .object({
       service_name: z.string().default("llm-model-router"),
