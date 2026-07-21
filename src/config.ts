@@ -12,7 +12,10 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { CAPABILITIES, STRATEGIES, type Capability, type ModelDescriptor } from "./types.js";
 
-const CONFIG_DIR = process.env.ROUTER_CONFIG_DIR ?? join(process.cwd(), "config");
+// Resolved at call time (not import time) so tests can point at fixtures.
+function configDir(): string {
+  return process.env.ROUTER_CONFIG_DIR ?? join(process.cwd(), "config");
+}
 
 const providerSchema = z.object({
   base_url: z.string().url(),
@@ -60,6 +63,7 @@ const modelSchema = z.object({
   cost_per_1k_output: z.number(),
   avg_latency_ms: z.number().int(),
   capabilities: z.array(z.enum(CAPABILITIES)).default([]),
+  api_key_env: z.string().optional(),
 });
 
 const catalogSchema = z.object({ models: z.array(modelSchema).min(1) });
@@ -75,10 +79,14 @@ export interface AppConfig {
     classifierApiKey?: string;
   };
   providerApiKey(provider: string): string | undefined;
+  /** Resolve the API key to use for a call: the model's own key (if its
+   *  `api_key_env` is set and present) else the provider default. Per-model
+   *  keys give the vendor billing dashboard a per-model cost breakdown. */
+  resolveApiKey(provider: string, modelId?: string): string | undefined;
 }
 
 function loadYaml(name: string): unknown {
-  const path = join(CONFIG_DIR, name);
+  const path = join(configDir(), name);
   let text: string;
   try {
     text = readFileSync(path, "utf-8");
@@ -99,6 +107,7 @@ function toDescriptor(m: z.infer<typeof modelSchema>): ModelDescriptor {
     costPer1kOutput: m.cost_per_1k_output,
     avgLatencyMs: m.avg_latency_ms,
     capabilities: new Set<Capability>(m.capabilities),
+    apiKeyEnv: m.api_key_env,
   };
 }
 
@@ -138,10 +147,13 @@ export function getConfig(): AppConfig {
       .filter(Boolean),
   );
 
+  const catalog = catalogRaw.models.map(toDescriptor);
+  const byId = new Map(catalog.map((m) => [m.id, m]));
+
   cached = {
     server,
     strategies: strategyBook.strategies,
-    catalog: catalogRaw.models.map(toDescriptor),
+    catalog,
     secrets: {
       routerApiKeys,
       classifierApiKey: process.env.CLASSIFIER_API_KEY,
@@ -150,6 +162,16 @@ export function getConfig(): AppConfig {
       const p = server.providers[provider];
       if (!p) return undefined;
       return process.env[p.api_key_env];
+    },
+    resolveApiKey(provider: string, modelId?: string): string | undefined {
+      if (modelId) {
+        const model = byId.get(modelId);
+        if (model?.apiKeyEnv) {
+          const key = process.env[model.apiKeyEnv];
+          if (key) return key;
+        }
+      }
+      return this.providerApiKey(provider);
     },
   };
   return cached;

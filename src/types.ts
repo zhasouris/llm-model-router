@@ -112,6 +112,9 @@ export interface ModelDescriptor {
   costPer1kOutput: number;
   avgLatencyMs: number;
   capabilities: Set<Capability>;
+  /** Optional env var holding this model's own API key (for per-model billing);
+   *  falls back to the provider default key when unset. */
+  apiKeyEnv?: string;
 }
 
 export function supports(model: ModelDescriptor, cap: Capability): boolean {

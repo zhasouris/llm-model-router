@@ -1,0 +1,15 @@
+default_strategy: balanced
+auth:
+  enabled: false
+classifier:
+  enabled: false
+  provider: openai
+  model: fixture-nano
+providers:
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+telemetry:
+  console_export: false
+  otlp:
+    enabled: false

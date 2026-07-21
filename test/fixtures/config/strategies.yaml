@@ -1,0 +1,5 @@
+strategies:
+  balanced: { cost: 1.0 }
+  cost: { cost: 3.0 }
+  quality: { complexity: 3.0 }
+  latency: { latency: 3.0 }

@@ -8,6 +8,10 @@
 #   tier                                    : rough capability rank (higher = stronger)
 #   avg_latency_ms                          : seed value; overridden by live OTel later
 #   capabilities                            : any of [vision, tools, structured_output, audio, reasoning]
+#   api_key_env  (optional)                 : env var holding THIS model's own API key.
+#       When set and present, the proxy authenticates this model's calls with that
+#       key instead of the provider default — so the vendor's billing dashboard
+#       attributes spend per model (ADR 0007). Falls back to the provider key if unset.
 
 models:
   - id: gpt-4.1
@@ -19,6 +23,8 @@ models:
     cost_per_1k_output: 8.00
     avg_latency_ms: 1200
     capabilities: [vision, tools, structured_output]
+    # Example of a per-model key (falls back to OPENAI_API_KEY if this env is unset):
+    # api_key_env: OPENAI_API_KEY_GPT_4_1
 
   - id: gpt-4.1-mini
     provider: openai

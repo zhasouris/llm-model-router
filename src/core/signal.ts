@@ -69,7 +69,8 @@ export class LlmClassifierProvider implements SignalProvider {
     if (!provider) return defaultClassifierResult(true);
 
     const apiKey =
-      this.config.secrets.classifierApiKey ?? this.config.providerApiKey(cfg.provider);
+      this.config.secrets.classifierApiKey ??
+      this.config.resolveApiKey(cfg.provider, cfg.model);
     const client = new OpenAI({
       baseURL: provider.base_url,
       apiKey: apiKey ?? "missing",

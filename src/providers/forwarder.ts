@@ -39,13 +39,17 @@ export interface UpstreamResponse {
   stream?: ReadableStream<Uint8Array> | null;
 }
 
+export interface ForwardArgs {
+  provider: string;
+  body: Record<string, unknown>;
+  incomingHeaders: Record<string, string>;
+  stream: boolean;
+  /** Chosen model id — used to resolve a per-model API key (ADR 0007). */
+  model?: string;
+}
+
 export interface ForwarderLike {
-  forward(args: {
-    provider: string;
-    body: Record<string, unknown>;
-    incomingHeaders: Record<string, string>;
-    stream: boolean;
-  }): Promise<UpstreamResponse>;
+  forward(args: ForwardArgs): Promise<UpstreamResponse>;
 }
 
 export class Forwarder implements ForwarderLike {
@@ -56,23 +60,23 @@ export class Forwarder implements ForwarderLike {
     return `${base}/chat/completions`;
   }
 
-  private headers(provider: string, incoming: Record<string, string>): Record<string, string> {
+  private headers(
+    provider: string,
+    incoming: Record<string, string>,
+    modelId?: string,
+  ): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(incoming)) {
       if (!DROP_REQUEST_HEADERS.has(k.toLowerCase())) out[k] = v;
     }
-    out["Authorization"] = `Bearer ${this.config.providerApiKey(provider) ?? "missing"}`;
+    // Per-model key if configured, else the provider default (ADR 0007).
+    out["Authorization"] = `Bearer ${this.config.resolveApiKey(provider, modelId) ?? "missing"}`;
     out["Content-Type"] = "application/json";
     return out;
   }
 
-  async forward(args: {
-    provider: string;
-    body: Record<string, unknown>;
-    incomingHeaders: Record<string, string>;
-    stream: boolean;
-  }): Promise<UpstreamResponse> {
-    const { provider, body, incomingHeaders, stream } = args;
+  async forward(args: ForwardArgs): Promise<UpstreamResponse> {
+    const { provider, body, incomingHeaders, stream, model } = args;
     const url = this.url(provider);
 
     return tracer.startActiveSpan("router.forward", async (span) => {
@@ -82,7 +86,7 @@ export class Forwarder implements ForwarderLike {
 
       const resp = await fetch(url, {
         method: "POST",
-        headers: this.headers(provider, incomingHeaders),
+        headers: this.headers(provider, incomingHeaders, model),
         body: JSON.stringify(body),
       });
 

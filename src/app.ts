@@ -105,6 +105,7 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
       body: forwardBody,
       incomingHeaders: upstreamHeaders,
       stream,
+      model: decision.modelId,
     });
 
     const respHeaders = decisionHeaders(decision);

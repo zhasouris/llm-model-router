@@ -1,0 +1,20 @@
+models:
+  - id: fixture-with-key
+    provider: openai
+    tier: 3
+    context_window: 128000
+    max_output_tokens: 8000
+    cost_per_1k_input: 1.0
+    cost_per_1k_output: 2.0
+    avg_latency_ms: 800
+    capabilities: [tools]
+    api_key_env: FIXTURE_MODEL_KEY
+  - id: fixture-no-key
+    provider: openai
+    tier: 2
+    context_window: 128000
+    max_output_tokens: 8000
+    cost_per_1k_input: 0.1
+    cost_per_1k_output: 0.4
+    avg_latency_ms: 400
+    capabilities: [tools]
