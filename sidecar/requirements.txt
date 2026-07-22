@@ -1,4 +1,4 @@
 routellm[serve]
-fastapi>=0.115
+fastapi>=0.139.0
 uvicorn[standard]>=0.32
 pandas>=2.0
