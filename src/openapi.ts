@@ -118,6 +118,54 @@ export const openApiSpec = {
         responses: { "200": { description: "Model list" }, "401": { description: "Unauthorized" } },
       },
     },
+    "/v1/router/models": {
+      get: {
+        summary: "Catalog models with routability (which ones this deployment holds a key for)",
+        description:
+          "The router scores on capability and price and has no notion of credentials, so it can " +
+          "rank a model whose provider is unkeyed — the failure would only surface as a 401 from " +
+          "the provider at forward time. `available` is true when a key resolves for the model " +
+          "(its own `api_key_env`, else the provider default). Unauthenticated while the demo " +
+          "inspector is enabled, behind bearer auth otherwise.",
+        responses: {
+          "200": {
+            description: "Model list with availability and a per-provider summary",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    object: { type: "string" },
+                    data: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          provider: { type: "string" },
+                          tier: { type: "integer" },
+                          capabilities: { type: "array", items: { type: "string" } },
+                          available: { type: "boolean" },
+                        },
+                      },
+                    },
+                    summary: {
+                      type: "object",
+                      properties: {
+                        total: { type: "integer" },
+                        available: { type: "integer" },
+                        providers: { type: "object", additionalProperties: { type: "boolean" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Unauthorized (only when the demo inspector is disabled)" },
+        },
+      },
+    },
     "/healthz": {
       get: {
         summary: "Liveness check",

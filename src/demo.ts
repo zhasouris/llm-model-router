@@ -51,11 +51,29 @@ export function loadPresets(): Preset[] {
   }
 }
 
-export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
+export interface DemoModel {
+  id: string;
+  provider: string;
+  available: boolean;
+}
+
+export function demoHtml(presets: Preset[], models: DemoModel[] = []): string {
   const presetsJson = JSON.stringify(presets).replace(/</g, "\\u003c");
+  const availabilityJson = JSON.stringify(
+    Object.fromEntries(models.map((m) => [m.id, m.available])),
+  ).replace(/</g, "\\u003c");
+
+  // 🟢 routable / ⚪ no key. Carried in the option label because a <select>
+  // cannot be styled per-option across browsers.
   const modelOptions = ['<option value="auto">auto (let the router decide)</option>']
-    .concat(modelIds.map((m) => `<option value="${m}">${m}</option>`))
+    .concat(
+      models.map(
+        (m) => `<option value="${m.id}">${m.available ? "🟢" : "⚪"} ${m.id}</option>`,
+      ),
+    )
     .join("");
+
+  const availableCount = models.filter((m) => m.available).length;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -89,6 +107,7 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
   .banner { font-size: 1.1rem; }
   .banner b { font-size: 1.25rem; }
   .muted { opacity: 0.7; }
+  .legend { font-size: 0.8rem; opacity: 0.75; cursor: help; align-self: center; }
   .lat { display: inline-block; margin-left: 0.5rem; padding: 0.05rem 0.45rem; border-radius: 999px;
     background: #8882; font-size: 0.75rem; font-variant-numeric: tabular-nums; vertical-align: middle;
     cursor: help; }
@@ -130,6 +149,9 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
           <select id="force">${modelOptions}</select>
         </label>
         <button class="go" id="go">Inspect routing</button>
+        <span class="legend" title="A model is routable when this deployment holds an API key for its provider. Models without one are still ranked — the router just can't forward to them.">
+          🟢 ${availableCount}/${models.length} routable · ⚪ no key
+        </span>
       </div>
       <div id="out"></div>
     </main>
@@ -137,6 +159,22 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
 
 <script>
   var PRESETS = ${presetsJson};
+  var AVAILABLE = ${availabilityJson};
+
+  // 🟢 the deployment holds a key for this model's provider; ⚪ it does not, so
+  // the model is ranked but could not actually be forwarded to.
+  function avail(model) {
+    return AVAILABLE[model] ? '🟢' : '⚪';
+  }
+
+  // The router scores on capability and price, not on whether a key exists, so
+  // the winner can be a model this deployment cannot actually call. Say so here
+  // rather than letting it surface later as a 401 from the provider.
+  function unroutableNote(decision) {
+    if (!decision || AVAILABLE[decision.model]) return '';
+    return '<br><span class="warn">⚪ no API key for ' + esc(decision.provider) +
+      ' — this deployment would rank it first but fail to forward</span>';
+  }
   var btn = document.getElementById('go');
   var out = document.getElementById('out');
 
@@ -175,10 +213,13 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
       return;
     }
     if (data.bypassed) {
-      out.innerHTML = '<div class="card banner">Forced to <b>' + esc(data.decision ? data.decision.model : '-') + '</b> ' +
+      out.innerHTML = '<div class="card banner">' +
+        (data.decision ? avail(data.decision.model) + ' ' : '') +
+        'Forced to <b>' + esc(data.decision ? data.decision.model : '-') + '</b> ' +
         (data.decision ? '<span class="muted">(' + esc(data.decision.provider) + ')</span>' : '') +
         latency(data) +
-        '<br><span class="muted">routing skipped (X-Router-Bypass) — the model is used verbatim</span></div>' +
+        '<br><span class="muted">routing skipped (X-Router-Bypass) — the model is used verbatim</span>' +
+        unroutableNote(data.decision) + '</div>' +
         headersCard(hdrs) +
         '<details><summary>Raw JSON</summary><pre>' + esc(JSON.stringify(data, null, 2)) + '</pre></details>';
       return;
@@ -187,9 +228,11 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
     var html = '';
 
     if (data.decision) {
-      html += '<div class="card banner">Routed to <b>' + esc(data.decision.model) + '</b> ' +
+      html += '<div class="card banner">' + avail(data.decision.model) + ' Routed to <b>' +
+        esc(data.decision.model) + '</b> ' +
         '<span class="muted">(' + esc(data.decision.provider) + ')</span>' + latency(data) + '<br>' +
-        '<span class="muted">' + esc(data.decision.reason) + '</span></div>';
+        '<span class="muted">' + esc(data.decision.reason) + '</span>' +
+        unroutableNote(data.decision) + '</div>';
     } else {
       html += '<div class="card err">No eligible model for this request.</div>';
     }
@@ -230,19 +273,21 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
 
     if (data.ranked && data.ranked.length) {
       var rows = data.ranked.map(function (r, i) {
-        return '<tr class="' + (i === 0 ? 'win' : '') + '"><td>' + esc(r.model) + '</td><td>' + esc(r.tier) +
+        return '<tr class="' + (i === 0 ? 'win' : '') + '"><td>' + avail(r.model) + '</td><td>' +
+          esc(r.model) + '</td><td>' + esc(r.tier) +
           '</td><td>' + r.score.toFixed(3) + '</td><td>$' + r.estimatedCost.toFixed(5) + '</td></tr>';
       }).join('');
       html += '<div class="card"><h3>Ranked candidates</h3><table>' +
-        '<tr><th>model</th><th>tier</th><th>score</th><th>est. cost</th></tr>' + rows + '</table></div>';
+        '<tr><th></th><th>model</th><th>tier</th><th>score</th><th>est. cost</th></tr>' + rows + '</table></div>';
     }
 
     if (data.excluded && data.excluded.length) {
       var ex = data.excluded.map(function (e) {
-        return '<tr><td>' + esc(e.model) + '</td><td class="muted">' + esc((e.failedConstraints || []).join(', ')) + '</td></tr>';
+        return '<tr><td>' + avail(e.model) + '</td><td>' + esc(e.model) + '</td><td class="muted">' +
+          esc((e.failedConstraints || []).join(', ')) + '</td></tr>';
       }).join('');
       html += '<div class="card"><h3>Excluded by constraints</h3><table>' +
-        '<tr><th>model</th><th>failed</th></tr>' + ex + '</table></div>';
+        '<tr><th></th><th>model</th><th>failed</th></tr>' + ex + '</table></div>';
     }
 
     if (data.warnings && data.warnings.length) {

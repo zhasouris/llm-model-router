@@ -4,7 +4,7 @@
  */
 
 import { swaggerUI } from "@hono/swagger-ui";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { makeAuth } from "./auth.js";
 import { getConfig, type AppConfig } from "./config.js";
 import { NoEligibleModelError, Router } from "./core/router.js";
@@ -76,6 +76,42 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
   // off — leaving visitors pinned to a route that no longer exists.
   app.get("/", (c) => c.redirect(config.server.demo.enabled ? "/demo" : "/docs", 302));
 
+  // Which catalog models this deployment can actually reach. A model is
+  // *routable* only if a key resolves for it — its own `api_key_env` if set,
+  // else the provider default (ADR 0007). Without this, a caller has no way to
+  // tell a model that will answer from one that will 401 at forward time.
+  const modelAvailability = () =>
+    config.catalog.map((m) => ({
+      id: m.id,
+      provider: m.provider,
+      tier: m.tier,
+      capabilities: [...m.capabilities],
+      available: Boolean(config.resolveApiKey(m.provider, m.id)),
+    }));
+
+  const availabilityHandler = (c: Context) => {
+    const data = modelAvailability();
+    const providers: Record<string, boolean> = {};
+    for (const m of data) providers[m.provider] = providers[m.provider] || m.available;
+    return c.json({
+      object: "list",
+      data,
+      summary: {
+        total: data.length,
+        available: data.filter((m) => m.available).length,
+        providers,
+      },
+    });
+  };
+
+  // Registered before the auth guard only when the inspector is public, since
+  // the demo page needs it unauthenticated. Otherwise it goes behind auth with
+  // the rest of /v1 — which vendors a deployment holds keys for is not secret,
+  // but it is not something to volunteer to anonymous callers in production.
+  if (config.server.demo.enabled) {
+    app.get("/v1/router/models", availabilityHandler);
+  }
+
   // Decision-inspector demo (page + explain endpoint). Registered BEFORE the
   // /v1 auth guard so it works with only the server-side classifier key — no
   // proxy key needed. It runs the pipeline for inspection but NEVER forwards a
@@ -91,8 +127,9 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
     }
 
     const presets = loadPresets();
-    const modelIds = config.catalog.map((m) => m.id);
-    app.get("/demo", (c) => c.html(demoHtml(presets, modelIds)));
+    // Recomputed per request: keys come from the environment, so availability
+    // can change on a container restart without the page being rebuilt.
+    app.get("/demo", (c) => c.html(demoHtml(presets, modelAvailability())));
 
     app.post("/v1/router/explain", async (c) => {
       let raw: Record<string, unknown>;
@@ -145,12 +182,18 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
   // Auth guards the rest of the /v1 surface (models, chat completions).
   app.use("/v1/*", makeAuth(config));
 
+  // Kept in the strict OpenAI shape — it is the drop-in compatibility surface,
+  // so routing metadata belongs on /v1/router/models rather than here.
   app.get("/v1/models", (c) =>
     c.json({
       object: "list",
       data: config.catalog.map((m) => ({ id: m.id, object: "model", owned_by: m.provider })),
     }),
   );
+
+  if (!config.server.demo.enabled) {
+    app.get("/v1/router/models", availabilityHandler);
+  }
 
   app.post("/v1/chat/completions", async (c) => {
     let raw: Record<string, unknown>;
