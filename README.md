@@ -362,11 +362,6 @@ gold + quality-judged accuracy); CI (typecheck, tests, coverage floors) + securi
 - Automatic cross-provider failover.
 - **Sensitive-data routing** — enforce data-handling policy as a hard, fail-closed
   constraint ([ADR 0009](docs/decisions/0009-sensitive-data-routing.md), planned).
-- **Advisory-mode client SDK** — ask the router *which* model to use, then call the vendor
-  from your own process instead of proxying through it. Takes the router off the response
-  path; in exchange, vendor keys move to the client and policy becomes advice rather than
-  enforcement. A fork in the architecture, so it needs its own ADR first
-  ([backlog item 4](docs/TODO.md)).
 
 ---
 
