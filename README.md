@@ -2,7 +2,7 @@
 
 **An OpenAI-compatible proxy that picks the best model for every request — automatically.**
 
-![tests](https://img.shields.io/badge/tests-51%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-69%20passing-brightgreen)
 ![routing eval](https://img.shields.io/badge/routing-83%25%20judged%20%7C%2011%2F11%20gold-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-97.7%25-3178c6)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ed)
@@ -104,8 +104,12 @@ can slot in behind the same interface without touching the hot path.
 
 - **Cut inference spend without hand-tuning model choice.** Stop hard-coding `gpt-4.1`
   everywhere; reserve the expensive model for the work that needs it — per request.
-- **One endpoint, many providers.** OpenAI and Claude today (Claude via its
-  OpenAI-compatible endpoint); self-hosted / Ollama on the roadmap.
+- **One endpoint, many providers.** **32 models across 9 vendors** — OpenAI, Anthropic,
+  Google, Mistral, DeepSeek, xAI, Groq, Together and Cohere — behind a single
+  OpenAI-shaped API. A pluggable transformer layer talks each vendor's dialect: Anthropic
+  goes over its **native Messages API**, the rest over their OpenAI-compatible endpoints,
+  and adding a native adapter is one file (see [docs/transformers.md](docs/transformers.md)).
+  Self-hosted / Ollama on the roadmap.
 - **Per-call control without breaking the schema.** Ask for `cost` on a batch job and
   `quality` on a customer-facing path — via a header, body still a pristine OpenAI payload.
 - **A foundation you own.** Self-hosted, config-driven, OpenTelemetry throughout.
@@ -335,19 +339,21 @@ npm run eval:judge# quality-judged accuracy (spends — real model calls)
 
 ## Status & roadmap
 
-**Now:** OpenAI-compatible surface; OpenAI native + Claude via Anthropic's OpenAI-compat
-endpoint; pluggable signal (heuristic / LLM classifier / RouteLLM sidecar);
-strategy-weighted scoring; header control; streaming; per-model API keys; OpenTelemetry;
-Docker; evaluation harness (dry-run + provable gold + quality-judged accuracy).
+**Now:** OpenAI-compatible surface over **32 models / 9 vendors**; a pluggable transformer
+layer (Anthropic native Messages API, OpenAI-compat passthrough for the rest —
+[docs/transformers.md](docs/transformers.md)); pluggable signal (heuristic / LLM classifier
+/ RouteLLM sidecar); strategy-weighted scoring; header control; streaming; per-model API
+keys; OpenTelemetry (traces, metrics, logs); Docker; evaluation harness (dry-run + provable
+gold + quality-judged accuracy); CI security scanning (SAST + DAST).
 
 **In progress / deferred (documented in the ADRs):**
 
 - **RouteLLM shadow-eval → promotion** ([ADR 0006](docs/decisions)): the sidecar +
   `SignalProvider` are built; the accuracy lift vs. the heuristic is not yet benchmarked
   through the judge.
-- Canonical intermediate representation + native multi-provider translation
-  ([ADR 0001](docs/decisions)) — or routing provider translation through a mature gateway
-  like LiteLLM instead.
+- Native transformers for the remaining vendors (Gemini, Cohere, …) — they work today over
+  their OpenAI-compatible endpoints; native adapters are a fidelity upgrade, tracked as a
+  checklist in [docs/transformers.md](docs/transformers.md).
 - Self-hosted / Ollama backends.
 - Offline, telemetry-fed ML router ([ADR 0005](docs/decisions)).
 - Automatic cross-provider failover.
