@@ -94,6 +94,52 @@ describe("endpoint", () => {
     expect(fake.lastBody?.temperature).toBe(0.7);
   });
 
+  it("reports how long the routing step took", async () => {
+    const { deps } = makeDeps();
+    const res = await createApp(deps).request("/v1/chat/completions", {
+      method: "POST",
+      headers: { ...AUTH, "content-type": "application/json" },
+      body: JSON.stringify({ model: "auto", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const raw = res.headers.get("X-Router-Duration-Ms")!;
+    expect(raw).toMatch(/^\d+$/);
+    expect(Number(raw)).toBeGreaterThanOrEqual(0);
+  });
+
+  // The point of the header is to isolate the proxy's own overhead, so a slow
+  // upstream must not inflate it.
+  it("excludes upstream time from the routing duration", async () => {
+    const config = getConfig();
+    const slow = {
+      async forward(): Promise<UpstreamResponse> {
+        await new Promise((r) => setTimeout(r, 200));
+        return { status: 200, headers: { "content-type": "application/json" }, body: "{}" };
+      },
+    };
+    const deps: AppDeps = { config, router: new Router(config, stubAnalyze), forwarder: slow };
+
+    const start = Date.now();
+    const res = await createApp(deps).request("/v1/chat/completions", {
+      method: "POST",
+      headers: { ...AUTH, "content-type": "application/json" },
+      body: JSON.stringify({ model: "auto", messages: [{ role: "user", content: "hi" }] }),
+    });
+    const wallClock = Date.now() - start;
+
+    expect(wallClock).toBeGreaterThanOrEqual(200);
+    expect(Number(res.headers.get("X-Router-Duration-Ms"))).toBeLessThan(100);
+  });
+
+  it("bypass still reports a routing duration", async () => {
+    const { deps } = makeDeps();
+    const res = await createApp(deps).request("/v1/chat/completions", {
+      method: "POST",
+      headers: { ...AUTH, "content-type": "application/json", "X-Router-Bypass": "true" },
+      body: JSON.stringify({ model: "gpt-4.1", messages: [{ role: "user", content: "hi" }] }),
+    });
+    expect(res.headers.get("X-Router-Duration-Ms")).toMatch(/^\d+$/);
+  });
+
   it("lists models with auth", async () => {
     const { deps } = makeDeps();
     const app = createApp(deps);

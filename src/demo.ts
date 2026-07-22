@@ -264,7 +264,7 @@ export function demoHtml(presets: Preset[], modelIds: string[] = []): string {
       });
       var data = await res.json();
       var hdrs = {};
-      ['X-Router-Model', 'X-Router-Reason', 'X-Router-Warning'].forEach(function (n) {
+      ['X-Router-Model', 'X-Router-Reason', 'X-Router-Duration-Ms', 'X-Router-Warning'].forEach(function (n) {
         var v = res.headers.get(n);
         if (v) hdrs[n] = v;
       });

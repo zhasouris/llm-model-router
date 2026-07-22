@@ -80,6 +80,7 @@ export class Router {
           bypassed: true,
           ranked: [],
           warnings: req.options.warnings,
+          routingMs: Date.now() - started,
         },
       };
     }
@@ -120,13 +121,14 @@ export class Router {
       const estimatedCost =
         (analysis.inputTokens / 1000) * top.model.costPer1kInput +
         (analysis.classifier.expectedOutputTokens / 1000) * top.model.costPer1kOutput;
+      const routingMs = Date.now() - started;
       recordDecision({
         strategy: req.options.strategy,
         model: top.model.id,
         provider: top.model.provider,
         bypassed: false,
         degraded: analysis.classifier.degraded,
-        durationMs: Date.now() - started,
+        durationMs: routingMs,
         estimatedCost,
       });
 
@@ -139,6 +141,7 @@ export class Router {
           bypassed: false,
           ranked,
           warnings,
+          routingMs,
         },
         analysis,
       };
@@ -156,6 +159,7 @@ export class Router {
    * Powers the /demo decision-inspector page.
    */
   async explain(req: RoutingRequest): Promise<ExplainResult> {
+    const started = Date.now();
     Object.assign(req, detectRequirements(req.body));
     const detected = {
       requiresVision: req.requiresVision,
@@ -185,6 +189,7 @@ export class Router {
             }
           : null,
         warnings: req.options.warnings,
+        routingMs: Date.now() - started,
       };
     }
 
@@ -242,6 +247,7 @@ export class Router {
           }
         : null,
       warnings,
+      routingMs: Date.now() - started,
     };
   }
 }
@@ -271,4 +277,6 @@ export interface ExplainResult {
   }[];
   decision: { model: string; provider: string; reason: string } | null;
   warnings: string[];
+  /** Wall-clock ms spent deciding (no upstream call is made here). */
+  routingMs: number;
 }

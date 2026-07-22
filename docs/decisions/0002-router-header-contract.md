@@ -56,6 +56,12 @@ Emitted for transparency so behavior is debuggable without server logs:
 |---|---|---|
 | `X-Router-Model` | The model actually chosen | `gpt-4.1-mini` |
 | `X-Router-Reason` | Why it was chosen | `low-complexity` |
+| `X-Router-Warning` | Soft warnings (e.g. unknown strategy, degraded signal) | `signal degraded; used deterministic defaults` |
+| `X-Router-Duration-Ms` | Time spent **in the routing step** — detection, signal, filtering, scoring. Excludes the upstream call, so it is the overhead the proxy adds. | `142` |
+
+Header values are folded to printable ASCII before being emitted: reasons and warnings are
+human-facing prose, and a non-Latin-1 character in a header value makes the runtime reject
+the whole response. The JSON body keeps the original text.
 
 ### Error handling for control headers
 

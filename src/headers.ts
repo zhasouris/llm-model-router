@@ -14,6 +14,9 @@ export const H_MAX_COST = "x-router-max-cost";
 export const H_MODEL = "X-Router-Model";
 export const H_REASON = "X-Router-Reason";
 export const H_WARNING = "X-Router-Warning";
+/** Time spent in the routing step only — not the upstream call. Lets a caller
+ *  see the overhead the proxy adds without timing the whole request. */
+export const H_DURATION = "X-Router-Duration-Ms";
 
 export const CONTROL_HEADERS = new Set([H_STRATEGY, H_BYPASS, H_MAX_COST]);
 

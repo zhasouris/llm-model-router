@@ -97,6 +97,10 @@ export const openApiSpec = {
             headers: {
               "X-Router-Model": { schema: { type: "string" }, description: "Model chosen" },
               "X-Router-Reason": { schema: { type: "string" }, description: "Why it was chosen" },
+              "X-Router-Duration-Ms": {
+                schema: { type: "integer" },
+                description: "Time spent routing (excludes the upstream call)",
+              },
               "X-Router-Warning": { schema: { type: "string" }, description: "Soft warnings" },
             },
           },
