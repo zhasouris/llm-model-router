@@ -2,7 +2,19 @@
 
 **An OpenAI-compatible proxy that picks the best model for every request — automatically.**
 
-![tests](https://img.shields.io/badge/tests-83%20passing-brightgreen)
+### ▶ [**Try the live decision inspector**](https://llmrouter-app.purplehill-bc78c3f6.eastus2.azurecontainerapps.io)
+
+Type a prompt — or click a gold preset — and watch the router pick a model: the
+signals it extracted, every candidate scored and ranked, which models were excluded
+and why, and the headers a real OpenAI client would read back. No sign-up, no key.
+
+*Inspector only. The deployment carries no provider keys, so it decides but never
+forwards — the whole `/v1` surface answers 401. Running on Azure Container Apps
+(see [deploy/azure](deploy/azure)); it scales to zero, so the first click may wait
+a few seconds for a cold start.*
+
+[![live demo](https://img.shields.io/badge/live%20demo-decision%20inspector-7c3aed)](https://llmrouter-app.purplehill-bc78c3f6.eastus2.azurecontainerapps.io)
+![tests](https://img.shields.io/badge/tests-115%20passing-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-88%25%20lines-green)
 ![routing eval](https://img.shields.io/badge/routing-83%25%20judged%20%7C%2011%2F11%20gold-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-97.7%25-3178c6)
@@ -70,8 +82,12 @@ curl http://localhost:8000/v1/chat/completions \
   -d '{"model":"auto","messages":[{"role":"user","content":"hello"}]}' -i
 ```
 
-Open **`http://localhost:8000/docs`** for a Swagger UI documenting the endpoints, the
-`X-Router-*` control headers, and bearer auth. Raw spec at `/openapi.json`.
+Open **`http://localhost:8000`** for the decision inspector (the same page as the
+[live demo](https://llmrouter-app.purplehill-bc78c3f6.eastus2.azurecontainerapps.io)),
+and **`/docs`** for a Swagger UI documenting the endpoints, the `X-Router-*` control
+headers, and bearer auth. Raw spec at `/openapi.json`.
+
+Deploying it yourself takes one command — see [deploy/azure](deploy/azure).
 
 ---
 
