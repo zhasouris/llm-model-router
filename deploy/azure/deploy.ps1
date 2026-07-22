@@ -81,8 +81,15 @@ Write-Note "Subscription: $($account.name) [$($account.id)]"
 # The containerapp commands live in an extension; install up front so the
 # deployment does not stop halfway to prompt.
 az extension add --name containerapp --upgrade --only-show-errors 2>$null | Out-Null
-az provider register --namespace Microsoft.App --only-show-errors 2>$null | Out-Null
-az provider register --namespace Microsoft.OperationalInsights --only-show-errors 2>$null | Out-Null
+foreach ($ns in @(
+        'Microsoft.App',
+        'Microsoft.OperationalInsights',
+        'Microsoft.Insights',
+        'Microsoft.ContainerRegistry',
+        'Microsoft.ManagedIdentity'
+    )) {
+    az provider register --namespace $ns --only-show-errors 2>$null | Out-Null
+}
 
 # --- secrets from .env -----------------------------------------------------
 
@@ -216,13 +223,25 @@ $appParams = @(
     "maxReplicas=$MaxReplicas"
 )
 
-$appJson = az deployment group create `
-    --resource-group $ResourceGroup `
-    --name "$NamePrefix-app" `
-    --template-file (Join-Path $PSScriptRoot 'app.bicep') `
-    --parameters $appParams `
-    --query properties.outputs `
-    --output json
+# The AcrPull role assignment is created by infra.bicep, and RBAC takes a
+# little while to propagate. On a first deployment the app can therefore fail
+# its very first image pull with an authorization error even though everything
+# is configured correctly, so retry once before treating it as a real failure.
+$appJson = $null
+foreach ($attempt in 1..2) {
+    $appJson = az deployment group create `
+        --resource-group $ResourceGroup `
+        --name "$NamePrefix-app" `
+        --template-file (Join-Path $PSScriptRoot 'app.bicep') `
+        --parameters $appParams `
+        --query properties.outputs `
+        --output json
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($attempt -eq 1) {
+        Write-Note 'Deployment failed; waiting 45s for the AcrPull role to propagate, then retrying once...'
+        Start-Sleep -Seconds 45
+    }
+}
 if ($LASTEXITCODE -ne 0) { throw 'App deployment failed.' }
 
 $appOut = $appJson | ConvertFrom-Json
