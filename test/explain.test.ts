@@ -149,6 +149,18 @@ describe("/v1/router/explain + /demo", () => {
     expect(res.headers.get("X-Router-Reason")).toContain("forced");
   });
 
+  it("reports the routing duration on the explain endpoint", async () => {
+    const res = await createApp(deps()).request("/v1/router/explain", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "Say hi" }] }),
+    });
+    const raw = res.headers.get("X-Router-Duration-Ms")!;
+    expect(raw).toMatch(/^\d+$/);
+    const json = (await res.json()) as { routingMs: number };
+    expect(Number(raw)).toBe(json.routingMs);
+  });
+
   // The bypass reason contains an em dash. Header values are Latin-1, so an
   // unsanitised value makes the runtime reject the whole response with a 500.
   it("folds non-ASCII in reasons so the header never breaks the response", async () => {

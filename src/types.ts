@@ -135,4 +135,7 @@ export interface RoutingDecision {
   bypassed: boolean;
   ranked: ScoredModel[];
   warnings: string[];
+  /** Wall-clock ms spent deciding — detection, signal, filtering, scoring.
+   *  Excludes the upstream call, so it measures the overhead the proxy adds. */
+  routingMs: number;
 }

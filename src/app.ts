@@ -12,6 +12,7 @@ import { fetchRouteLLMScore, promptText } from "./core/signal.js";
 import { demoHtml, loadPresets } from "./demo.js";
 import { logWarn } from "./logger.js";
 import {
+  H_DURATION,
   H_MODEL,
   H_REASON,
   H_WARNING,
@@ -54,6 +55,7 @@ function decisionHeaders(decision: RoutingDecision): Record<string, string> {
   const headers: Record<string, string> = {
     [H_MODEL]: headerSafe(decision.modelId),
     [H_REASON]: headerSafe(decision.reason),
+    [H_DURATION]: String(decision.routingMs),
   };
   if (decision.warnings.length) headers[H_WARNING] = headerSafe(decision.warnings.join("; "));
   return headers;
@@ -124,7 +126,7 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
       // Mirror the proxy path's response headers (ADR 0002). /v1/router/explain
       // returns the decision as a body, but emitting the same headers lets the
       // demo show exactly what a real client reads off /v1/chat/completions.
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { [H_DURATION]: String(result.routingMs) };
       if (result.decision) {
         headers[H_MODEL] = headerSafe(result.decision.model);
         headers[H_REASON] = headerSafe(result.decision.reason);
