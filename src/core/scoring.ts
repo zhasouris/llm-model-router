@@ -16,7 +16,7 @@ import type {
   Strategy,
 } from "../types.js";
 import type { ConstraintRule } from "./constraints.js";
-import type { FeatureRule } from "./extractors/types.js";
+import { clamp01, type FeatureRule } from "./extractors/types.js";
 
 export function filterCandidates(
   catalog: ModelDescriptor[],
@@ -54,6 +54,14 @@ export function scoreModels(
     if (!signal) continue;
     const raw = new Map<string, number>();
     for (const m of candidates) raw.set(m.id, rule.scoreModel(m, signal));
+    // A fixedScale rule is already on an absolute 0..1 scale; min-max would
+    // rescale whatever spread exists to fill the range and lose the magnitude.
+    if (rule.fixedScale) {
+      const clamped = new Map<string, number>();
+      for (const [k, v] of raw) clamped.set(k, clamp01(v));
+      normalizedByRule.set(rule.name, clamped);
+      continue;
+    }
     normalizedByRule.set(rule.name, normalize(raw));
   }
 

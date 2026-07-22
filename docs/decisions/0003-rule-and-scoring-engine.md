@@ -98,6 +98,29 @@ interface IConstraintRule {
   `latency` weights the latency feature.
 - For each surviving model, final score = `Σ (strategyWeight[rule] × rule.ScoreModel(model, signal))`.
 - Highest score wins; ties broken by a deterministic fallback (e.g. lower cost).
+
+#### Per-rule normalization, and when to skip it
+
+Rule outputs are min-max normalized **across the candidate set** before weighting, because
+their raw units are incomparable — dollars, milliseconds, tier products. Relative ranking
+within the candidates is the only meaningful comparison available for those.
+
+That is wrong for a rule whose output is *already* on an absolute `0..1` scale, where the
+magnitude itself carries meaning. Min-max stretches whatever spread happens to exist to fill
+the range, so a signal of `0.1` and a signal of `1.0` produce an identical contribution — a
+graded preference silently degenerates into a capability flag.
+
+Such rules set **`fixedScale: true`** and are used as-is (clamped), not normalized.
+Currently `reasoning_depth` and `data_sensitivity`.
+
+*Found in practice:* on "Say hi in one word" (reasoning depth `0.1`), a reasoning-capable
+model was handed the full reasoning bonus and beat a model that was both faster and cheaper
+under the **latency** strategy. See `test/scoring.test.ts`.
+
+A caveat worth recording: this change made the dry-run eval look *worse* (see below), because
+that harness runs the deterministic heuristic provider, whose weak signals the old behaviour
+was accidentally compensating for. Under the LLM classifier — the production default — the
+same prompts rank correctly.
 - The chosen model and a human-readable reason are surfaced via `X-Router-Model` /
   `X-Router-Reason` (see [ADR 0002](0002-router-header-contract.md)).
 

@@ -64,6 +64,35 @@ should be documented the same way the `/v1/chat/completions` ones are.
 
 ---
 
+### 4. The heuristic signal provider under-rates prompts
+
+Exposed while fixing the `fixedScale` normalization bug. On *"Write a thread-safe LRU cache
+in Rust with generics and explain the trade-offs"* the two providers disagree sharply:
+
+| Signal | Heuristic | LLM classifier |
+|---|---|---|
+| `taskType` | **`conversation`** | `coding` |
+| `complexity` | 0.41 | 0.70 |
+| `reasoningDepth` | 0.12 | 0.60 |
+
+Complexity below `0.5` makes the complexity rule actively favour *lower* tiers
+(`tier × (2v − 1)` goes negative), so under heuristic signals a quality-strategy coding
+request routes to a tier-1 model. The old over-weighted `reasoning_depth` was masking this.
+
+This matters beyond the eval harness: the heuristic is the **degraded fallback** when the
+classifier is unavailable, so a classifier outage currently degrades routing more than it
+appears to.
+
+- [ ] Teach the heuristic to detect task type (code fences, language names, "write a
+      function", stack traces) instead of defaulting to `conversation`.
+- [ ] Revisit the complexity rule's hard cliff at `0.5` — a small change either side of it
+      flips the tier preference from strongest to weakest.
+- [ ] Let `eval/run.ts` take `--provider llm` so the harness can measure the path that
+      production actually uses. Today it only supports `heuristic` and `routellm`, which is
+      why the tier-accuracy numbers below are heuristic-only.
+
+---
+
 ## Carried over
 
 Already tracked elsewhere; listed here so this file is the single view.

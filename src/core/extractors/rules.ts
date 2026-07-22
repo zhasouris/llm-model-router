@@ -1,7 +1,9 @@
 /**
  * The eight feature rules (ADR 0003). Each extracts a normalized 0..1 signal
  * and scores models against it. Scores may be any monotonic value ("higher is
- * better"); the scoring engine min-max normalizes them across candidates.
+ * better"); the scoring engine min-max normalizes them across candidates —
+ * except for rules marked `fixedScale`, whose output is already 0..1 and whose
+ * magnitude would be destroyed by min-max (see FeatureRule.fixedScale).
  */
 
 import { supports, type FeatureScore, type ModelDescriptor } from "../../types.js";
@@ -55,6 +57,9 @@ export const complexityRule: FeatureRule = {
 
 export const reasoningDepthRule: FeatureRule = {
   name: "reasoning_depth",
+  // Already 0..1, and the magnitude matters: a prompt needing 10% reasoning
+  // should hand a reasoning-capable model a tenth of the bonus, not all of it.
+  fixedScale: true,
   extract(_req, analysis) {
     const v = clamp01(analysis.classifier.reasoningDepth);
     return f("reasoning_depth", v, v);
@@ -77,6 +82,8 @@ export const taskTypeRule: FeatureRule = {
 
 export const dataSensitivityRule: FeatureRule = {
   name: "data_sensitivity",
+  // Same shape as reasoning_depth: 0..1, magnitude meaningful.
+  fixedScale: true,
   extract(_req, analysis) {
     const v = clamp01(analysis.classifier.dataSensitivity);
     return f("data_sensitivity", v, v);
