@@ -166,6 +166,41 @@ export const openApiSpec = {
         },
       },
     },
+    "/v1/router/providers": {
+      get: {
+        summary: "Probe each provider key with a real, minimal call",
+        description:
+          "`/v1/router/models` reports whether a key is *present*; this reports whether it " +
+          "*works*. Sends a 1-token completion to each provider's cheapest catalog model " +
+          "through the normal adapter path. Outcomes distinguish `bad_key` (401/403 — fix " +
+          "the credential) from `model_gone` (404 — the credential is fine and the catalog " +
+          "is stale), which are indistinguishable otherwise. **Spends money**, so it is " +
+          "always authenticated and results are cached for 60s. Returns 503 when a " +
+          "configured provider is broken; a provider with no key is reported as `no_key` " +
+          "and does not affect the status code.",
+        parameters: [
+          {
+            name: "provider",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            description: "Probe a single provider instead of all of them.",
+          },
+          {
+            name: "force",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["true"] },
+            description: "Bypass the 60s cache and call upstream again.",
+          },
+        ],
+        responses: {
+          "200": { description: "Every configured provider answered" },
+          "401": { description: "Unauthorized" },
+          "503": { description: "At least one configured provider is broken" },
+        },
+      },
+    },
     "/healthz": {
       get: {
         summary: "Liveness check",

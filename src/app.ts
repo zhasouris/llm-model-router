@@ -20,6 +20,7 @@ import {
   stripControlHeaders,
 } from "./headers.js";
 import { openApiSpec } from "./openapi.js";
+import { probeProviders } from "./probe.js";
 import { Forwarder, type ForwarderLike } from "./providers/forwarder.js";
 import type { RoutingDecision, RoutingRequest } from "./types.js";
 
@@ -194,6 +195,23 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
   if (!config.server.demo.enabled) {
     app.get("/v1/router/models", availabilityHandler);
   }
+
+  // Does each key actually work? Sends the smallest possible completion to the
+  // cheapest model of each provider, through the real adapter path.
+  //
+  // Always behind auth, including on a demo deployment: it spends money on
+  // every call, so an anonymous caller must not be able to trigger it. Results
+  // are cached for a minute; ?force=true re-probes, ?provider=x narrows.
+  app.get("/v1/router/providers", async (c) => {
+    const { results, summary } = await probeProviders(config, forwarder, {
+      provider: c.req.query("provider"),
+      force: c.req.query("force") === "true",
+    });
+    // 503 when something is configured but broken — a key that is simply absent
+    // is a deployment choice, not a fault.
+    const broken = summary.bad_key + summary.model_gone + summary.provider_error + summary.unreachable;
+    return c.json({ results, summary }, broken > 0 ? 503 : 200);
+  });
 
   app.post("/v1/chat/completions", async (c) => {
     let raw: Record<string, unknown>;
