@@ -16,4 +16,11 @@ COPY eval/datasets ./eval/datasets
 
 EXPOSE 8000
 
+# Run unprivileged (the node:20 image ships a `node` user).
+RUN chown -R node:node /app
+USER node
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://localhost:8000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
 CMD ["npm", "start"]

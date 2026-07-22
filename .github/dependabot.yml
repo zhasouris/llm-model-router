@@ -1,4 +1,7 @@
 version: 2
+
+# `cooldown` delays adopting brand-new releases, so a compromised or yanked
+# version isn't pulled in the moment it ships (supply-chain hardening).
 updates:
   # Node dependencies (proxy)
   - package-ecosystem: npm
@@ -6,25 +9,35 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   # Python dependencies (RouteLLM sidecar)
   - package-ecosystem: pip
     directory: /sidecar
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   # Base images
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: docker
     directory: /sidecar
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
-  # Pin/refresh GitHub Actions
+  # Pin/refresh GitHub Actions (workflows pin to commit SHAs)
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

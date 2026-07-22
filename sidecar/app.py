@@ -16,7 +16,7 @@ Env:
 import os
 
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from routellm.controller import Controller
 
@@ -46,7 +46,9 @@ def healthz() -> dict:
 
 @app.post("/score")
 def score(req: ScoreRequest) -> dict:
-    assert _controller is not None, "controller not loaded"
+    # A real check, not `assert` — asserts are stripped under `python -O`.
+    if _controller is None:
+        raise HTTPException(status_code=503, detail="router not loaded")
     win = float(
         _controller.batch_calculate_win_rate(
             prompts=pd.Series([req.prompt]), router=ROUTER

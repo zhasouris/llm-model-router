@@ -59,8 +59,10 @@ export function setupTelemetry(config: AppConfig): void {
   if (tel.logs.enabled) setupLogs(resource, tel, azureOn, azureConn).catch(warn("logs"));
 }
 
+// Pass the signal name as a separate argument rather than interpolating it into
+// the format string (keeps static analysers happy and logs structured).
 const warn = (what: string) => (err: unknown) =>
-  console.warn(`telemetry(${what}) setup failed, continuing:`, (err as Error).message);
+  console.warn("telemetry setup failed, continuing:", what, (err as Error).message);
 
 async function setupTraces(
   resource: Resource,
