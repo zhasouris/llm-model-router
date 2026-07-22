@@ -367,17 +367,40 @@ gold + quality-judged accuracy); CI (typecheck, tests, coverage floors) + securi
 
 **In progress / deferred** (full backlog: [docs/TODO.md](docs/TODO.md)):
 
-- **RouteLLM shadow-eval → promotion** ([ADR 0006](docs/decisions)): the sidecar +
+- **RouteLLM shadow-eval → promotion** ([ADR 0006](docs/decisions/0006-leveraging-learned-routing.md)): the sidecar +
   `SignalProvider` are built; the accuracy lift vs. the heuristic is not yet benchmarked
   through the judge.
 - Native transformers for the remaining vendors (Gemini, Cohere, …) — they work today over
   their OpenAI-compatible endpoints; native adapters are a fidelity upgrade, tracked as a
   checklist in [docs/transformers.md](docs/transformers.md).
 - Self-hosted / Ollama backends.
-- Offline, telemetry-fed ML router ([ADR 0005](docs/decisions)).
+- Offline, telemetry-fed ML router ([ADR 0005](docs/decisions/0005-offline-ml-module.md)).
 - Automatic cross-provider failover.
 - **Sensitive-data routing** — enforce data-handling policy as a hard, fail-closed
   constraint ([ADR 0009](docs/decisions/0009-sensitive-data-routing.md), planned).
+- **Per-task competency scores** and **hybrid "prefer X among near-equals" selection**
+  ([ADR 0010](docs/decisions/0010-per-task-competency-scores.md),
+  [ADR 0011](docs/decisions/0011-lexicographic-tie-break.md), planned).
+
+### Decision record
+
+Every significant design decision is written down, including the ones not yet built.
+**Accepted** means shipped and in the code; **Proposed** means the plan is agreed and the
+implementation is open.
+
+| ADR | Decision | Status |
+|---|---|---|
+| [0001](docs/decisions/0001-multi-provider-translation-strategy.md) | Multi-provider translation — hub-and-spoke adapters | ✅ Accepted |
+| [0002](docs/decisions/0002-router-header-contract.md) | Router header contract (control + response headers) | ✅ Accepted |
+| [0003](docs/decisions/0003-rule-and-scoring-engine.md) | Rule & scoring engine — constraints filter, scores rank | ✅ Accepted |
+| [0004](docs/decisions/0004-stack-and-project-layout.md) | Stack & project layout (TypeScript) | ✅ Accepted |
+| [0005](docs/decisions/0005-offline-ml-module.md) | Offline ML as a separate, telemetry-fed module | ✅ Accepted |
+| [0006](docs/decisions/0006-leveraging-learned-routing.md) | Learned routing (RouteLLM) behind the `SignalProvider` seam | ✅ Accepted |
+| [0007](docs/decisions/0007-per-model-api-keys.md) | Per-model API keys for cost attribution | ✅ Accepted |
+| [0008](docs/decisions/0008-observability.md) | Observability — metrics, logs, Azure Monitor | ✅ Accepted |
+| [0009](docs/decisions/0009-sensitive-data-routing.md) | Sensitive data → approved providers, as a fail-closed **constraint** | 📋 Proposed |
+| [0010](docs/decisions/0010-per-task-competency-scores.md) | Per-task competency scores instead of a single `tier` scalar | 📋 Proposed — blocked on `taskType` accuracy ([TODO 4](docs/TODO.md)) |
+| [0011](docs/decisions/0011-lexicographic-tie-break.md) | Lexicographic tie-break — `quality-prefer-cost` and friends | 📋 Proposed — unblocked |
 
 ---
 
