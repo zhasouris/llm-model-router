@@ -2,8 +2,11 @@
 # attributes. Hard-constraint filtering and weighted scoring both read from here
 # (ADR 0003). Adding a model is a config edit — no code change.
 #
-# Cost/latency values are ILLUSTRATIVE placeholders — set them to real pricing.
-#   cost_per_1k_input / cost_per_1k_output : USD per 1000 tokens
+# Cost/context sourced from web research 2026-07-23 (docs/process/model-scores.json);
+# some (Gemini, Cohere) are mixed-confidence. NOTE: the `cost_per_1k_*` field names
+# are legacy — the values are USD per 1,000,000 tokens. Routing uses cost ratios so
+# this is consistent for selection; only the displayed estimatedCost is affected.
+#   cost_per_1k_input / cost_per_1k_output : USD per 1,000,000 tokens (see note above)
 #   context_window / max_output_tokens     : tokens
 #   tier                                    : rough capability rank (higher = stronger)
 #   avg_latency_ms                          : seed value; overridden by live OTel later
@@ -31,8 +34,8 @@ models:
     tier: 3
     context_window: 1047576
     max_output_tokens: 32768
-    cost_per_1k_input: 0.40
-    cost_per_1k_output: 1.60
+    cost_per_1k_input: 0.4
+    cost_per_1k_output: 1.6
     avg_latency_ms: 800
     capabilities: [vision, tools, structured_output]
 
@@ -41,8 +44,8 @@ models:
     tier: 2
     context_window: 1047576
     max_output_tokens: 32768
-    cost_per_1k_input: 0.10
-    cost_per_1k_output: 0.40
+    cost_per_1k_input: 0.1
+    cost_per_1k_output: 0.4
     avg_latency_ms: 500
     capabilities: [tools, structured_output]
 
@@ -51,31 +54,31 @@ models:
     tier: 5
     context_window: 200000
     max_output_tokens: 100000
-    cost_per_1k_input: 1.10
-    cost_per_1k_output: 4.40
+    cost_per_1k_input: 1.1
+    cost_per_1k_output: 4.4
     avg_latency_ms: 4000
     capabilities: [tools, structured_output, reasoning]
 
-  # Flagship: the single most capable model in the catalog. tier 6 (uniquely
-  # above the tier-5 field) so the quality/complexity rules rank it first on the
-  # hardest prompts; `reasoning` reflects its extended-thinking support. It is
-  # also the priciest model, so cost/latency/balanced strategies still steer
-  # away from it on easy prompts — it wins only when difficulty justifies it.
+  # Top-tier flagship. Kept at tier 5 with the rest of the frontier field —
+  # per-task competency (ADR 0010, config/competency.yaml) now does the fine
+  # ranking within the tier, so no artificial tier bump is needed to surface it
+  # on the tasks it genuinely leads. `reasoning` reflects its extended-thinking
+  # support (earns the reasoning_depth weight, not an override).
   - id: claude-opus-4-8
     provider: anthropic
-    tier: 6
-    context_window: 200000
-    max_output_tokens: 64000
-    cost_per_1k_input: 15.00
-    cost_per_1k_output: 75.00
+    tier: 5
+    context_window: 1000000
+    max_output_tokens: 128000
+    cost_per_1k_input: 5.00
+    cost_per_1k_output: 25.00
     avg_latency_ms: 2500
     capabilities: [vision, tools, structured_output, reasoning]
 
   - id: claude-sonnet-5
     provider: anthropic
     tier: 4
-    context_window: 200000
-    max_output_tokens: 64000
+    context_window: 1000000
+    max_output_tokens: 128000
     cost_per_1k_input: 3.00
     cost_per_1k_output: 15.00
     avg_latency_ms: 1500
@@ -85,9 +88,9 @@ models:
     provider: anthropic
     tier: 2
     context_window: 200000
-    max_output_tokens: 32000
-    cost_per_1k_input: 0.80
-    cost_per_1k_output: 4.00
+    max_output_tokens: 64000
+    cost_per_1k_input: 1.00
+    cost_per_1k_output: 5.00
     avg_latency_ms: 700
     capabilities: [vision, tools, structured_output]
 
@@ -107,7 +110,7 @@ models:
     tier: 4
     context_window: 128000
     max_output_tokens: 16384
-    cost_per_1k_input: 2.50
+    cost_per_1k_input: 2.5
     cost_per_1k_output: 10.00
     avg_latency_ms: 1000
     capabilities: [vision, tools, structured_output]
@@ -118,7 +121,7 @@ models:
     context_window: 128000
     max_output_tokens: 16384
     cost_per_1k_input: 0.15
-    cost_per_1k_output: 0.60
+    cost_per_1k_output: 0.6
     avg_latency_ms: 600
     capabilities: [vision, tools, structured_output]
 
@@ -139,8 +142,8 @@ models:
     tier: 5
     context_window: 1048576
     max_output_tokens: 65536
-    cost_per_1k_input: 1.25 # UNVERIFIED (carried from gemini-2.5-pro)
-    cost_per_1k_output: 10.00 # UNVERIFIED
+    cost_per_1k_input: 2.00 # researched 2026-07-23 (mixed confidence)
+    cost_per_1k_output: 12.00 # researched 2026-07-23 (mixed confidence)
     avg_latency_ms: 2212
     capabilities: [vision, tools, structured_output, reasoning]
 
@@ -149,8 +152,8 @@ models:
     tier: 3
     context_window: 1048576
     max_output_tokens: 65536
-    cost_per_1k_input: 0.30 # UNVERIFIED (carried from gemini-2.5-flash)
-    cost_per_1k_output: 2.50 # UNVERIFIED
+    cost_per_1k_input: 1.5 # researched 2026-07-23 (mixed confidence)
+    cost_per_1k_output: 7.5 # researched 2026-07-23 (mixed confidence)
     avg_latency_ms: 1152
     capabilities: [vision, tools, structured_output]
 
@@ -159,8 +162,8 @@ models:
     tier: 3
     context_window: 1048576
     max_output_tokens: 65536
-    cost_per_1k_input: 0.30 # UNVERIFIED (carried from gemini-2.5-flash)
-    cost_per_1k_output: 2.50 # UNVERIFIED
+    cost_per_1k_input: 1.5 # researched 2026-07-23 (mixed confidence)
+    cost_per_1k_output: 9.00 # researched 2026-07-23 (mixed confidence)
     avg_latency_ms: 1073
     capabilities: [vision, tools, structured_output]
 
@@ -169,8 +172,8 @@ models:
     tier: 2
     context_window: 1048576
     max_output_tokens: 65536
-    cost_per_1k_input: 0.10 # UNVERIFIED (carried from gemini-2.5-flash-lite)
-    cost_per_1k_output: 0.40 # UNVERIFIED
+    cost_per_1k_input: 0.3 # researched 2026-07-23 (mixed confidence)
+    cost_per_1k_output: 2.5 # researched 2026-07-23 (mixed confidence)
     avg_latency_ms: 662
     capabilities: [vision, tools, structured_output]
 
@@ -179,8 +182,8 @@ models:
     tier: 2
     context_window: 1048576
     max_output_tokens: 65536
-    cost_per_1k_input: 0.10 # UNVERIFIED (carried from gemini-2.5-flash-lite)
-    cost_per_1k_output: 0.40 # UNVERIFIED
+    cost_per_1k_input: 0.25 # researched 2026-07-23 (mixed confidence)
+    cost_per_1k_output: 1.5 # researched 2026-07-23 (mixed confidence)
     avg_latency_ms: 578
     capabilities: [vision, tools, structured_output]
 
@@ -188,50 +191,50 @@ models:
   - id: mistral-large-latest
     provider: mistral
     tier: 4
-    context_window: 131072
+    context_window: 262144
     max_output_tokens: 8192
-    cost_per_1k_input: 2.00
-    cost_per_1k_output: 6.00
+    cost_per_1k_input: 0.5
+    cost_per_1k_output: 1.5
     avg_latency_ms: 1400
     capabilities: [tools, structured_output]
 
   - id: mistral-medium-latest
     provider: mistral
     tier: 3
-    context_window: 131072
+    context_window: 262144
     max_output_tokens: 8192
-    cost_per_1k_input: 0.40
-    cost_per_1k_output: 2.00
+    cost_per_1k_input: 1.5
+    cost_per_1k_output: 7.5
     avg_latency_ms: 1000
     capabilities: [vision, tools, structured_output]
 
   - id: mistral-small-latest
     provider: mistral
     tier: 2
-    context_window: 131072
+    context_window: 262144
     max_output_tokens: 8192
-    cost_per_1k_input: 0.10
-    cost_per_1k_output: 0.30
+    cost_per_1k_input: 0.15
+    cost_per_1k_output: 0.6
     avg_latency_ms: 600
     capabilities: [tools, structured_output]
 
   - id: codestral-latest
     provider: mistral
     tier: 3
-    context_window: 262144
+    context_window: 256000
     max_output_tokens: 8192
-    cost_per_1k_input: 0.30
-    cost_per_1k_output: 0.90
+    cost_per_1k_input: 0.3
+    cost_per_1k_output: 0.9
     avg_latency_ms: 700
     capabilities: [tools, structured_output]
 
   - id: ministral-8b-latest
     provider: mistral
     tier: 1
-    context_window: 131072
+    context_window: 262100
     max_output_tokens: 8192
-    cost_per_1k_input: 0.10
-    cost_per_1k_output: 0.10
+    cost_per_1k_input: 0.15
+    cost_per_1k_output: 0.15
     avg_latency_ms: 400
     capabilities: [tools]
 
@@ -239,20 +242,20 @@ models:
   - id: deepseek-chat
     provider: deepseek
     tier: 3
-    context_window: 131072
-    max_output_tokens: 8192
-    cost_per_1k_input: 0.27
-    cost_per_1k_output: 1.10
+    context_window: 1000000
+    max_output_tokens: 384000
+    cost_per_1k_input: 0.14
+    cost_per_1k_output: 0.28
     avg_latency_ms: 1200
     capabilities: [tools, structured_output]
 
   - id: deepseek-reasoner
     provider: deepseek
     tier: 5
-    context_window: 131072
-    max_output_tokens: 65536
-    cost_per_1k_input: 0.55
-    cost_per_1k_output: 2.19
+    context_window: 1000000
+    max_output_tokens: 384000
+    cost_per_1k_input: 0.14
+    cost_per_1k_output: 0.28
     avg_latency_ms: 5000
     capabilities: [tools, structured_output, reasoning]
 
@@ -282,8 +285,8 @@ models:
     tier: 2
     context_window: 131072
     max_output_tokens: 32768
-    cost_per_1k_input: 0.30
-    cost_per_1k_output: 0.50
+    cost_per_1k_input: 0.3
+    cost_per_1k_output: 0.5
     avg_latency_ms: 700
     capabilities: [tools, structured_output, reasoning]
 
@@ -313,8 +316,8 @@ models:
     tier: 1
     context_window: 8192
     max_output_tokens: 8192
-    cost_per_1k_input: 0.20
-    cost_per_1k_output: 0.20
+    cost_per_1k_input: 0.2
+    cost_per_1k_output: 0.2
     avg_latency_ms: 250
     capabilities: [tools]
 
@@ -322,20 +325,20 @@ models:
   - id: qwen2.5-72b-instruct-turbo
     provider: together
     tier: 3
-    context_window: 131072
+    context_window: 32768
     max_output_tokens: 8192
-    cost_per_1k_input: 0.90
-    cost_per_1k_output: 0.90
+    cost_per_1k_input: 1.2
+    cost_per_1k_output: 1.2
     avg_latency_ms: 900
     capabilities: [tools, structured_output]
 
   - id: qwen2.5-coder-32b-instruct
     provider: together
     tier: 3
-    context_window: 131072
+    context_window: 32768
     max_output_tokens: 8192
-    cost_per_1k_input: 0.80
-    cost_per_1k_output: 0.80
+    cost_per_1k_input: 0.8
+    cost_per_1k_output: 0.8
     avg_latency_ms: 800
     capabilities: [tools, structured_output]
 
@@ -343,9 +346,9 @@ models:
     provider: together
     tier: 4
     context_window: 130815
-    max_output_tokens: 8192
-    cost_per_1k_input: 3.50
-    cost_per_1k_output: 3.50
+    max_output_tokens: 4096
+    cost_per_1k_input: 3.5
+    cost_per_1k_output: 3.5
     avg_latency_ms: 3000
     capabilities: [tools, structured_output]
 
@@ -355,7 +358,7 @@ models:
     tier: 3
     context_window: 128000
     max_output_tokens: 4096
-    cost_per_1k_input: 2.50
+    cost_per_1k_input: 2.5
     cost_per_1k_output: 10.00
     avg_latency_ms: 1300
     capabilities: [tools, structured_output]
@@ -366,6 +369,6 @@ models:
     context_window: 128000
     max_output_tokens: 4096
     cost_per_1k_input: 0.15
-    cost_per_1k_output: 0.60
+    cost_per_1k_output: 0.6
     avg_latency_ms: 700
     capabilities: [tools, structured_output]
