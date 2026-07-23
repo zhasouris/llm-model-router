@@ -14,7 +14,7 @@ forwards — the whole `/v1` surface answers 401. Running on Azure Container App
 a few seconds for a cold start.*
 
 [![live demo](https://img.shields.io/badge/live%20demo-decision%20inspector-7c3aed)](https://llmrouter-app.purplehill-bc78c3f6.eastus2.azurecontainerapps.io)
-![tests](https://img.shields.io/badge/tests-131%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-151%20passing-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-88%25%20lines-green)
 ![routing eval](https://img.shields.io/badge/routing-83%25%20judged%20%7C%2011%2F11%20gold-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-97.7%25-3178c6)
@@ -87,6 +87,14 @@ Open **`http://localhost:8000`** for the decision inspector (the same page as th
 and **`/docs`** for a Swagger UI documenting the endpoints, the `X-Router-*` control
 headers, and bearer auth. Raw spec at `/openapi.json`.
 
+Beyond the OpenAI-compatible `/v1/chat/completions` surface:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /v1/router/explain` | Run the full routing pipeline and return the decision trace **without** forwarding — powers the inspector. |
+| `GET /v1/router/models` | Catalog with a per-model `available` flag: which models this deployment actually holds a key for. |
+| `GET /v1/router/providers` | Probe each key with a real 1-token call — distinguishes a **bad key** (401) from a **retired model** (404), which look identical otherwise. Authenticated; spends a little. |
+
 Deploying it yourself takes one command — see [deploy/azure](deploy/azure).
 
 ---
@@ -122,7 +130,7 @@ can slot in behind the same interface without touching the hot path.
 
 - **Cut inference spend without hand-tuning model choice.** Stop hard-coding `gpt-4.1`
   everywhere; reserve the expensive model for the work that needs it — per request.
-- **One endpoint, many providers.** **32 models across 9 vendors** — OpenAI, Anthropic,
+- **One endpoint, many providers.** **33 models across 9 vendors** — OpenAI, Anthropic,
   Google, Mistral, DeepSeek, xAI, Groq, Together and Cohere — behind a single
   OpenAI-shaped API. A pluggable transformer layer talks each vendor's dialect: Anthropic
   goes over its **native Messages API**, the rest over their OpenAI-compatible endpoints,
@@ -153,11 +161,15 @@ request ─▶ detect ─▶ (bypass?) ─▶ analyze ─▶ filter (hard constr
    (complexity, expected output size, reasoning depth, task type, data sensitivity). Ships
    with a deterministic heuristic and a cheap-LLM classifier; a **RouteLLM sidecar** (a
    trained difficulty model) drops in behind the same `SignalProvider` interface. Degrades
-   gracefully — if the signal source fails, routing continues on deterministic signals.
+   gracefully — if the signal source fails, routing continues on deterministic signals. The
+   provider is chosen **per strategy**: `latency` uses a fast signal (heuristic or RouteLLM,
+   ~0–250ms) rather than the ~1s classifier whose output it barely weights
+   ([ADR 0012](docs/decisions/0012-classifier-latency.md)).
 3. **Filter** the model catalog by hard capability constraints (a vision request never
    routes to a non-vision model, ever).
-4. **Score** every surviving model with strategy-weighted, normalized rules and pick the
-   winner.
+4. **Score** every surviving model with strategy-weighted, normalized rules, then pick the
+   best model this deployment can actually **reach** — a higher-scoring model with no API
+   key configured is passed over, and the reason says so, rather than failing at forward time.
 5. **Forward** to the chosen provider and stream the response back unchanged.
 
 ### The datapoints it collects
@@ -365,7 +377,7 @@ npm run eval:judge# quality-judged accuracy (spends — real model calls)
 
 ## Status & roadmap
 
-**Now:** OpenAI-compatible surface over **32 models / 9 vendors**; a pluggable transformer
+**Now:** OpenAI-compatible surface over **33 models / 9 vendors**; a pluggable transformer
 layer (Anthropic native Messages API, OpenAI-compat passthrough for the rest —
 [docs/transformers.md](docs/transformers.md)); pluggable signal (heuristic / LLM classifier
 / RouteLLM sidecar); strategy-weighted scoring; header control; streaming; per-model API
