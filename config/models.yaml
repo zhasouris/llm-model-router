@@ -56,15 +56,20 @@ models:
     avg_latency_ms: 4000
     capabilities: [tools, structured_output, reasoning]
 
+  # Flagship: the single most capable model in the catalog. tier 6 (uniquely
+  # above the tier-5 field) so the quality/complexity rules rank it first on the
+  # hardest prompts; `reasoning` reflects its extended-thinking support. It is
+  # also the priciest model, so cost/latency/balanced strategies still steer
+  # away from it on easy prompts — it wins only when difficulty justifies it.
   - id: claude-opus-4-8
     provider: anthropic
-    tier: 5
+    tier: 6
     context_window: 200000
     max_output_tokens: 64000
     cost_per_1k_input: 15.00
     cost_per_1k_output: 75.00
     avg_latency_ms: 2500
-    capabilities: [vision, tools, structured_output]
+    capabilities: [vision, tools, structured_output, reasoning]
 
   - id: claude-sonnet-5
     provider: anthropic
