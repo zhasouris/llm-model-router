@@ -15,9 +15,9 @@ internet ──HTTPS──▶ Container Apps ingress ──▶ router container 
 |---|---|---|
 | Purpose | Publish the decision inspector | Actually route traffic |
 | Keys deployed | Classifier only | Classifier + provider keys |
-| `ROUTER_API_KEYS` | **Unset on purpose** | Required |
+| `AUTH_ISSUER` | **Unset on purpose** | Required |
 | `/demo`, `/v1/router/explain` | Public | Only with `-DemoEnabled` |
-| `/v1/chat/completions` | **401 to everyone** | Bearer token required |
+| `/v1/chat/completions` | **401 to everyone** | OAuth JWT required |
 | Worst-case spend | One cheap classifier call per inspect | Real model calls |
 
 ### Demo-only
@@ -27,15 +27,14 @@ internet ──HTTPS──▶ Container Apps ingress ──▶ router container 
 ```
 
 This ships the classifier key and **no provider keys at all**, so nothing can
-be forwarded upstream even in principle, and deliberately leaves
-`ROUTER_API_KEYS` unset.
+be forwarded upstream even in principle, and deliberately configures **no OAuth
+issuer**.
 
-That last part is the non-obvious bit, and it is worth understanding rather
-than trusting: **an empty key set does not disable auth.** `makeAuth` treats
-`valid.size === 0` as "no token can ever match" and returns 401, so the whole
-`/v1` surface is closed. The inspector still works because `/demo` and
-`/v1/router/explain` are registered *ahead* of the auth middleware — Hono runs
-matching handlers in registration order.
+That last part is the non-obvious bit, and worth understanding rather than
+trusting: **auth stays enabled, so with no issuer to validate against the
+gateway fails closed** — every `/v1` request is 401 (ADR 0015). The inspector
+still works because `/demo` and `/v1/router/explain` are registered *ahead* of
+the auth middleware — Hono runs matching handlers in registration order.
 
 The container app's root URL lands on the inspector — `/` redirects to `/demo`
 (302), so the hostname Azure hands you is the shareable link with no path to
@@ -53,8 +52,10 @@ cannot quietly turn the inspector off — or the proxy on.
 ```
 
 Here the app is on the public internet with nothing in front of it, so its own
-bearer auth is the only thing protecting it. `ROUTER_API_KEYS` must be set;
-`deploy.ps1` refuses to run otherwise. Add `-DemoEnabled` to also expose the
+OAuth JWT validation is the only thing protecting it. `AUTH_ISSUER` (and usually
+`AUTH_AUDIENCE`) must be set — a discovery URL for your OIDC provider; callers
+present a client-credentials JWT. `deploy.ps1` refuses to run otherwise. Add
+`-DemoEnabled` to also expose the
 inspector — but note that combination puts an unauthenticated, token-spending
 endpoint on a public URL. `maxReplicas` bounds how fast that can run away, not
 whether it can. The hostname contains a generated suffix, which is obscurity,

@@ -30,9 +30,14 @@ param image string
 @description('Name of the Application Insights component to send telemetry to.')
 param appInsightsName string
 
-@description('Comma-separated bearer tokens clients present to the proxy. Leaving this empty does NOT disable auth — it means no token can ever match, so the whole /v1 surface answers 401. That is the correct setting for a demo-only deployment; /v1/router/explain is registered ahead of the auth middleware and still works.')
-@secure()
-param routerApiKeys string = ''
+@description('OAuth 2.0 issuer (OIDC). The /v1 surface validates JWTs from this issuer (ADR 0015). Leave empty to fail closed — the whole /v1 surface answers 401 while /demo and /v1/router/explain stay open (the demo-only posture). Not a secret; the issuer publishes public keys.')
+param authIssuer string = ''
+
+@description('Expected JWT audience (aud). Usually your API identifier, e.g. api://corgi-ai-gateway.')
+param authAudience string = ''
+
+@description('Optional scope the token must carry, e.g. router.invoke.')
+param authRequiredScope string = ''
 
 @secure()
 param openaiApiKey string = ''
@@ -88,13 +93,6 @@ var classifierSecret = empty(classifierApiKey) ? [] : [
   }
 ]
 
-var routerKeysSecret = empty(routerApiKeys) ? [] : [
-  {
-    name: 'router-api-keys'
-    value: routerApiKeys
-  }
-]
-
 var baseSecrets = [
   {
     name: 'appinsights-connection-string'
@@ -102,7 +100,7 @@ var baseSecrets = [
   }
 ]
 
-var secrets = concat(baseSecrets, routerKeysSecret, openaiSecret, anthropicSecret, classifierSecret)
+var secrets = concat(baseSecrets, openaiSecret, anthropicSecret, classifierSecret)
 
 var openaiEnv = empty(openaiApiKey) ? [] : [
   {
@@ -123,10 +121,24 @@ var classifierEnv = empty(classifierApiKey) ? [] : [
   }
 ]
 
-var routerKeysEnv = empty(routerApiKeys) ? [] : [
+// OAuth config (non-secret; ADR 0015). Only set env vars that are non-empty so
+// unset ones fall through to the baked-in config default (empty = fail closed).
+var authIssuerEnv = empty(authIssuer) ? [] : [
   {
-    name: 'ROUTER_API_KEYS'
-    secretRef: 'router-api-keys'
+    name: 'AUTH_ISSUER'
+    value: authIssuer
+  }
+]
+var authAudienceEnv = empty(authAudience) ? [] : [
+  {
+    name: 'AUTH_AUDIENCE'
+    value: authAudience
+  }
+]
+var authScopeEnv = empty(authRequiredScope) ? [] : [
+  {
+    name: 'AUTH_REQUIRED_SCOPE'
+    value: authRequiredScope
   }
 ]
 
@@ -172,7 +184,7 @@ var routellmUrlEnv = empty(routellmUrl) ? [] : [
   }
 ]
 
-var env = concat(baseEnv, routerKeysEnv, openaiEnv, anthropicEnv, classifierEnv, routellmUrlEnv)
+var env = concat(baseEnv, authIssuerEnv, authAudienceEnv, authScopeEnv, openaiEnv, anthropicEnv, classifierEnv, routellmUrlEnv)
 
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: '${namePrefix}-app'
@@ -189,8 +201,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        // Public. There is no gateway or app registration in front of this:
-        // /v1/* is protected by the app's own bearer auth (ROUTER_API_KEYS).
+        // Public. There is no gateway or platform auth layer in front of this:
+        // /v1/* is protected by the app validating OAuth JWTs itself (ADR 0015).
         external: true
         targetPort: 8000
         transport: 'auto'

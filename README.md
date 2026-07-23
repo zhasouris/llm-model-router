@@ -77,11 +77,13 @@ docker compose up -d --build              # reads .env, serves on :8000
 docker compose --profile routellm up -d --build   # + the RouteLLM sidecar
 ```
 
-Call it exactly like the OpenAI API — just add a routing header:
+Call it exactly like the OpenAI API — just add a routing header. `$ACCESS_TOKEN` is an
+OAuth 2.0 client-credentials JWT from your IdP ([ADR 0015](docs/decisions/0015-client-credentials-auth.md));
+for local dev, set `auth.enabled: false` in `config/server.yaml` and drop the header.
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \
-  -H "Authorization: Bearer $ROUTER_KEY" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -H "X-Router-Strategy: cost" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hello"}]}' -i
@@ -90,7 +92,7 @@ curl http://localhost:8000/v1/chat/completions \
 Open **`http://localhost:8000`** for the decision inspector (the same page as the
 [live demo](https://llmrouter-app.purplehill-bc78c3f6.eastus2.azurecontainerapps.io)),
 and **`/docs`** for a Swagger UI documenting the endpoints, the `X-Router-*` control
-headers, and bearer auth. Raw spec at `/openapi.json`.
+headers, and OAuth JWT auth. Raw spec at `/openapi.json`.
 
 Beyond the OpenAI-compatible `/v1/chat/completions` surface:
 
@@ -357,7 +359,7 @@ counting, OpenTelemetry, run via `tsx`. The signal source is a pluggable `Signal
 
 | File | Holds |
 | --- | --- |
-| `.env` | Secrets — provider keys, optional per-model keys, proxy bearer tokens (gitignored; copy from `.env.example`) |
+| `.env` | Secrets — provider keys, optional per-model keys (gitignored; copy from `.env.example`). OAuth issuer/audience are non-secret and live here or in `server.yaml` |
 | `config/server.yaml` | Classifier, OTel, auth, provider endpoints |
 | `config/models.yaml` | Model catalog (cost, context, capabilities, tier, optional `api_key_env`) |
 | `config/strategies.yaml` | Strategy → weight vectors |
@@ -432,6 +434,7 @@ implementation is open.
 | [0012](docs/decisions/0012-classifier-latency.md) | Cut classifier latency — the router's entire overhead is one LLM call | 🟡 Partial — `latency` uses a fast signal (done); caching planned |
 | [0013](docs/decisions/0013-routellm-sidecar-transport.md) | Keep the HTTP sidecar (reject CLI); the real lever is the embedding hop | ✅ Accepted — local-embedding follow-up open |
 | [0014](docs/decisions/0014-dotnet-client-and-prerequisites.md) | Official .NET client (Semantic Kernel) + the router-side headers it needs | 📋 Proposed — R2 shipped; R1/R3/R4 open |
+| [0015](docs/decisions/0015-client-credentials-auth.md) | Protect `/v1` with OAuth 2.0 client-credentials JWTs (replaces static keys) | ✅ Accepted |
 
 ---
 

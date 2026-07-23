@@ -39,10 +39,10 @@ param(
     [switch]$DemoEnabled,
 
     # Publish ONLY the decision inspector. Ships the classifier key and nothing
-    # else, and deliberately leaves ROUTER_API_KEYS unset so the entire /v1
-    # surface answers 401. The demo works because /v1/router/explain is
-    # registered ahead of the auth middleware. Nothing can be forwarded to a
-    # provider, so the only spend possible is classifier tokens.
+    # else, and deliberately configures no OAuth issuer so the /v1 surface fails
+    # closed (401). The demo works because /v1/router/explain is registered ahead
+    # of the auth middleware. Nothing can be forwarded to a provider, so the only
+    # spend possible is classifier tokens.
     [switch]$DemoOnly,
 
     [int]$MinReplicas = 0,
@@ -124,9 +124,15 @@ function Get-EnvValue($name) {
     return ''
 }
 
+# OAuth issuer/audience/scope protect /v1 (ADR 0015). Not secrets — read from
+# .env for convenience. No issuer => the gateway fails closed (every /v1 -> 401).
+$authIssuer = Get-EnvValue 'AUTH_ISSUER'
+$authAudience = Get-EnvValue 'AUTH_AUDIENCE'
+$authScope = Get-EnvValue 'AUTH_REQUIRED_SCOPE'
+
 if ($DemoOnly) {
-    # Inspector-only: ship the classifier key and nothing else, and leave
-    # ROUTER_API_KEYS unset so no bearer token can ever match.
+    # Inspector-only: ship the classifier key and nothing else, and configure no
+    # OAuth issuer so /v1 fails closed.
     $DemoEnabled = [switch]$true
 
     $classifierKey = Get-EnvValue 'CLASSIFIER_API_KEY'
@@ -135,35 +141,38 @@ if ($DemoOnly) {
         throw "Demo-only needs a classifier key: set CLASSIFIER_API_KEY (or OPENAI_API_KEY) in $EnvFile."
     }
 
-    $routerApiKeys = ''
+    $authIssuer = ''
+    $authAudience = ''
+    $authScope = ''
     $openaiKey = ''
     $anthropicKey = ''
 
     Write-Note 'Mode: DEMO ONLY'
     Write-Note '  classifier key  shipped (the inspector needs it for real signals)'
     Write-Note '  provider keys   NOT shipped - nothing can be forwarded upstream'
-    Write-Note '  ROUTER_API_KEYS unset - the whole /v1 surface answers 401'
+    Write-Note '  no OAuth issuer - the whole /v1 surface fails closed (401)'
 }
 else {
-    $routerApiKeys = Get-EnvValue 'ROUTER_API_KEYS'
-    if (-not $routerApiKeys) {
+    if (-not $authIssuer) {
         throw @"
-ROUTER_API_KEYS is empty in $EnvFile.
+AUTH_ISSUER is empty in $EnvFile.
 
-This deployment is publicly reachable with no gateway in front of it, and the
-proxy's own bearer auth is the only thing protecting /v1/chat/completions.
-Set at least one token and re-run - or pass -DemoOnly to publish just the
-decision inspector with no provider keys at all.
+This deployment is publicly reachable with no layer in front of it, and OAuth
+JWT validation is the only thing protecting /v1/chat/completions. Set
+AUTH_ISSUER (and usually AUTH_AUDIENCE) to your OIDC provider and re-run - or
+pass -DemoOnly to publish just the decision inspector, which needs no issuer.
 "@
     }
     $openaiKey = Get-EnvValue 'OPENAI_API_KEY'
     $anthropicKey = Get-EnvValue 'ANTHROPIC_API_KEY'
     $classifierKey = Get-EnvValue 'CLASSIFIER_API_KEY'
 
-    # Report which keys were found, never their values.
-    foreach ($k in @('OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'CLASSIFIER_API_KEY', 'ROUTER_API_KEYS')) {
+    Write-Note "OAuth issuer  : $authIssuer"
+    Write-Note "OAuth audience: $(if ($authAudience) { $authAudience } else { '(none - aud not checked)' })"
+    Write-Note "Required scope: $(if ($authScope) { $authScope } else { '(none)' })"
+    foreach ($k in @('OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'CLASSIFIER_API_KEY')) {
         $state = if (Get-EnvValue $k) { 'set' } else { 'absent' }
-        Write-Note ("{0,-24} {1}" -f $k, $state)
+        Write-Note ("  {0,-22} {1}" -f $k, $state)
     }
 }
 
@@ -272,7 +281,9 @@ $appParams = @(
     "acrLoginServer=$acrLoginServer"
     "appInsightsName=$($infra.appInsightsName.value)"
     "image=$image"
-    "routerApiKeys=$routerApiKeys"
+    "authIssuer=$authIssuer"
+    "authAudience=$authAudience"
+    "authRequiredScope=$authScope"
     "openaiApiKey=$openaiKey"
     "anthropicApiKey=$anthropicKey"
     "classifierApiKey=$classifierKey"

@@ -1,6 +1,6 @@
 # ADR 0015 — Protect the Proxy with OAuth 2.0 Client Credentials
 
-- **Status:** Proposed (plan; not yet implemented)
+- **Status:** Accepted (implemented)
 - **Date:** 2026-07-23
 - **Context repo:** `corgi-ai-gateway`
 
