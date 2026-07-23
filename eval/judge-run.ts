@@ -3,7 +3,7 @@
  * quality-derived ground truth. MAKES REAL MODEL CALLS (spends). Gated behind
  * this explicit command; not part of the hermetic suite.
  *
- *   npm run eval:judge -- --strategy balanced
+ *   npm run eval:judge -- --strategy value
  *
  * Requires OPENAI_API_KEY. Weak/strong/judge models are configurable via env.
  */
@@ -100,7 +100,7 @@ function buildRequest(request: unknown, strategy: Strategy): RoutingRequest {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const stratArg = argv[argv.indexOf("--strategy") + 1];
-  const strategy: Strategy = stratArg && isStrategy(stratArg) ? stratArg : "balanced";
+  const strategy: Strategy = stratArg && isStrategy(stratArg) ? stratArg : "value";
 
   const config = getConfig();
   const byId = new Map(config.catalog.map((m) => [m.id, m]));

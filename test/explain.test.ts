@@ -19,7 +19,7 @@ function router(): Router {
   return new Router(getConfig(), makeAnalyze(new HeuristicSignalProvider()));
 }
 
-function request(body: RoutingRequest["body"], strategy: RoutingRequest["options"]["strategy"] = "balanced"): RoutingRequest {
+function request(body: RoutingRequest["body"], strategy: RoutingRequest["options"]["strategy"] = "value"): RoutingRequest {
   return {
     body,
     options: { strategy, bypass: false, maxCost: null, warnings: [] },
@@ -93,7 +93,7 @@ describe("/v1/router/explain + /demo", () => {
     expect(html).toContain("Router decision inspector");
     expect(html).toContain("Gold presets");
     // A gold-query id should be embedded as a preset.
-    expect(html).toContain("cost-vision");
+    expect(html).toContain("value-vision");
     // The force-model control + catalog options are present.
     expect(html).toContain("Force model");
     expect(html).toContain("gpt-4.1-nano");
@@ -113,7 +113,7 @@ describe("/v1/router/explain + /demo", () => {
     const app = createApp(deps());
     const res = await app.request("/v1/router/explain", {
       method: "POST",
-      headers: { "content-type": "application/json", "X-Router-Strategy": "cost" },
+      headers: { "content-type": "application/json", "X-Router-Strategy": "value" },
       body: JSON.stringify({ messages: [{ role: "user", content: "Prove sqrt 2 is irrational" }] }),
     });
     expect(res.status).toBe(200);
@@ -132,7 +132,7 @@ describe("/v1/router/explain + /demo", () => {
   it("emits the same decision headers as the proxy path (ADR 0002)", async () => {
     const res = await createApp(deps()).request("/v1/router/explain", {
       method: "POST",
-      headers: { "content-type": "application/json", "X-Router-Strategy": "cost" },
+      headers: { "content-type": "application/json", "X-Router-Strategy": "value" },
       body: JSON.stringify({ messages: [{ role: "user", content: "Say hi" }] }),
     });
     expect(res.status).toBe(200);

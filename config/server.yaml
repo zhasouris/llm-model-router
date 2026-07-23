@@ -2,7 +2,7 @@
 # Validated at startup by src/config.ts (fails fast on misconfiguration).
 
 # Default routing strategy when the caller sends no X-Router-Strategy header.
-default_strategy: balanced
+default_strategy: value
 
 # OAuth 2.0 client-credentials resource-server validation (ADR 0015). Callers
 # obtain a JWT from an OIDC provider and present it as `Authorization: Bearer`.

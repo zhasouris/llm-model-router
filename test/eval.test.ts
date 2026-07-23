@@ -60,25 +60,25 @@ describe("runEval", () => {
   it("produces results for every strategy and baseline, hermetically", async () => {
     const results = await runEval(dataset);
     const groups = new Set(results.map((r) => r.group));
-    expect(groups.has("strategy:cost")).toBe(true);
-    expect(groups.has("strategy:quality")).toBe(true);
+    expect(groups.has("strategy:value")).toBe(true);
+    expect(groups.has("strategy:best")).toBe(true);
     expect(groups.has("baseline:always-cheapest")).toBe(true);
     expect(groups.has("baseline:always-strongest")).toBe(true);
     // Every result is a real catalog model with a numeric cost.
     for (const r of results) expect(r.estCost).toBeGreaterThanOrEqual(0);
   });
 
-  it("quality strategy picks a higher tier for the hard prompt than the easy one", async () => {
-    const results = await runEval(dataset, { strategies: ["quality"] });
-    const easy = results.find((r) => r.id === "easy" && r.group === "strategy:quality")!;
-    const hard = results.find((r) => r.id === "hard" && r.group === "strategy:quality")!;
+  it("best strategy picks a higher tier for the hard prompt than the easy one", async () => {
+    const results = await runEval(dataset, { strategies: ["best"] });
+    const easy = results.find((r) => r.id === "easy" && r.group === "strategy:best")!;
+    const hard = results.find((r) => r.id === "hard" && r.group === "strategy:best")!;
     expect(hard.tier).toBeGreaterThan(easy.tier);
   });
 
-  it("cost strategy is never more expensive on average than always-strongest", async () => {
+  it("value strategy is never more expensive on average than always-strongest", async () => {
     const results = await runEval(dataset);
     const stats = aggregate(results);
-    const cost = stats.find((s) => s.group === "strategy:cost")!;
+    const cost = stats.find((s) => s.group === "strategy:value")!;
     const strongest = stats.find((s) => s.group === "baseline:always-strongest")!;
     expect(cost.meanCost).toBeLessThanOrEqual(strongest.meanCost);
   });

@@ -1,5 +1,23 @@
+# Frontier-then-optimize routing (ADR 0017). One shared capability score `Q`
+# builds the top cluster (frontier) for the task; each strategy then optimizes a
+# single objective WITHIN that frontier. There are no per-strategy weighted sums.
+
+# Capability weights — the "how good is this model for this task" score Q.
+# Quality-family rules only; cost/latency are deliberately NOT in Q (that is the
+# whole point — capability is decided before price/speed).
+capability_weights:
+  complexity: 3.0
+  reasoning_depth: 2.0
+  task_type: 3.0 # per-task competency (ADR 0010) — the core quality signal
+  data_sensitivity: 0.3
+
+# Frontier (top cluster) width: a model is in the frontier when
+# Q >= Q_max * (1 - frontier_delta). Tight → value/fast ≈ best; loose → they may
+# trade a little capability for savings/speed. The one tuning knob.
+frontier_delta: 0.12
+
+# Each strategy → the objective it optimizes within the frontier.
 strategies:
-  balanced: { cost: 1.0 }
-  cost: { cost: 3.0 }
-  quality: { complexity: 3.0 }
-  latency: { latency: 3.0 }
+  best: capability # the frontier top — strongest model, price-blind
+  value: cost # cheapest model in the frontier
+  fast: latency # fastest model in the frontier

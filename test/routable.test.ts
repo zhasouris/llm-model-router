@@ -19,7 +19,7 @@ import type { RoutingRequest } from "../src/types.js";
 const SAVED = { ...process.env };
 const FIXTURE_DIR = join(process.cwd(), "test", "fixtures", "config");
 
-function request(strategy: RoutingRequest["options"]["strategy"] = "cost"): RoutingRequest {
+function request(strategy: RoutingRequest["options"]["strategy"] = "value"): RoutingRequest {
   return {
     body: { messages: [{ role: "user", content: "hi" }] },
     options: { strategy, bypass: false, maxCost: null, warnings: [] },

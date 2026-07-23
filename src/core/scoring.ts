@@ -10,6 +10,7 @@
 import type {
   FeatureScore,
   ModelDescriptor,
+  Objective,
   RequestAnalysis,
   RoutingRequest,
   ScoredModel,
@@ -89,9 +90,51 @@ export function scoreModels(
   return scored;
 }
 
-export function topReason(top: ScoredModel, strategy: Strategy): string {
-  const entries = Object.entries(top.breakdown);
-  if (entries.length === 0) return `${strategy}: default`;
-  const dominant = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
-  return `${strategy}: ${dominant[0]} (score ${top.score.toFixed(2)})`;
+const blended = (m: ModelDescriptor): number => m.costPer1kInput + m.costPer1kOutput;
+const byId = (a: ScoredModel, b: ScoredModel): number =>
+  a.model.id < b.model.id ? -1 : a.model.id > b.model.id ? 1 : 0;
+
+/**
+ * The frontier (top cluster, ADR 0017): model ids whose capability score `Q` is
+ * within `delta` of the best. `scored` must be Q-sorted (scoreModels output).
+ */
+export function frontierIds(scored: ScoredModel[], delta: number): Set<string> {
+  if (scored.length === 0) return new Set();
+  const qmax = scored[0]!.score;
+  const threshold = qmax > 0 ? qmax * (1 - delta) : -Infinity;
+  return new Set(scored.filter((s) => s.score >= threshold).map((s) => s.model.id));
+}
+
+/**
+ * Frontier-then-optimize (ADR 0017): re-order the Q-scored models so the strategy's
+ * objective wins WITHIN the frontier, with non-frontier models trailing by `Q`.
+ * `best` → frontier top; `value` → cheapest in frontier; `fast` → fastest in frontier.
+ */
+export function selectByObjective(
+  scored: ScoredModel[],
+  objective: Objective,
+  delta: number,
+): ScoredModel[] {
+  if (scored.length === 0) return scored;
+  const inFront = frontierIds(scored, delta);
+  const frontier = scored.filter((s) => inFront.has(s.model.id));
+  const rest = scored.filter((s) => !inFront.has(s.model.id)); // already Q-desc
+  if (objective === "cost") {
+    frontier.sort((a, b) => blended(a.model) - blended(b.model) || b.score - a.score || byId(a, b));
+  } else if (objective === "latency") {
+    frontier.sort((a, b) => a.model.avgLatencyMs - b.model.avgLatencyMs || b.score - a.score || byId(a, b));
+  } else {
+    frontier.sort((a, b) => b.score - a.score || blended(a.model) - blended(b.model) || byId(a, b));
+  }
+  return [...frontier, ...rest];
+}
+
+export function topReason(top: ScoredModel, strategy: Strategy, objective: Objective): string {
+  const how =
+    objective === "cost"
+      ? "cheapest in the capability frontier"
+      : objective === "latency"
+        ? "fastest in the capability frontier"
+        : "top of the capability frontier";
+  return `${strategy}: ${how} (capability ${top.score.toFixed(2)})`;
 }

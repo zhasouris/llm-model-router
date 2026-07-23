@@ -6,12 +6,18 @@
  * the request is kept loose and forwarded near-verbatim.
  */
 
-export const STRATEGIES = ["cost", "quality", "latency", "balanced"] as const;
+// Frontier-then-optimize strategies (ADR 0017). Each optimizes one objective
+// within the capability frontier for the task.
+export const STRATEGIES = ["best", "value", "fast"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
 
 export function isStrategy(v: string): v is Strategy {
   return (STRATEGIES as readonly string[]).includes(v);
 }
+
+/** What a strategy minimizes/maximizes within the frontier. */
+export const OBJECTIVES = ["capability", "cost", "latency"] as const;
+export type Objective = (typeof OBJECTIVES)[number];
 
 export const CAPABILITIES = [
   "vision",

@@ -78,7 +78,7 @@ export async function runEval(dataset: Scenario[], opts: RunOptions = {}): Promi
     }
 
     // Baselines over the same constraint-filtered candidate set.
-    const breq = buildRequest(sc, "balanced");
+    const breq = buildRequest(sc, "value");
     const { analysis } = await router.decide(breq); // mutates breq with detected requirements
     const a = analysis!;
     const candidates = filterCandidates(config.catalog, ALL_CONSTRAINTS, breq, a);

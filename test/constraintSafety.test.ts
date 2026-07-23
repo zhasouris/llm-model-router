@@ -10,11 +10,13 @@ import { filterCandidates, scoreModels } from "../src/core/scoring.js";
 import { defaultClassifierResult, supports, STRATEGIES } from "../src/types.js";
 import { makeAnalysis, makeModel, makeRequest } from "./helpers.js";
 
-const STRATEGY_WEIGHTS: Record<string, Record<string, number>> = {
-  cost: { cost: 3.0, input_tokens: 1.0, expected_output: 1.0 },
-  quality: { complexity: 3.0, reasoning_depth: 2.0, task_type: 1.5 },
-  latency: { latency: 3.0, cost: 0.5 },
-  balanced: { cost: 1.0, latency: 0.5, complexity: 1.0 },
+// Capability weights (ADR 0017): scoring no longer varies by strategy — the
+// strategy only re-orders the frontier — so one weight vector suffices here.
+const CAPABILITY_WEIGHTS: Record<string, number> = {
+  complexity: 3.0,
+  reasoning_depth: 2.0,
+  task_type: 3.0,
+  data_sensitivity: 0.3,
 };
 
 function visionCatalog() {
@@ -36,7 +38,7 @@ describe("constraint safety", () => {
       expect(candidates.length).toBeGreaterThan(0);
       expect(candidates.every((m) => supports(m, "vision"))).toBe(true);
 
-      const ranked = scoreModels(candidates, ALL_RULES, analysis.features, STRATEGY_WEIGHTS[strategy]!);
+      const ranked = scoreModels(candidates, ALL_RULES, analysis.features, CAPABILITY_WEIGHTS);
       expect(ranked[0]!.model.id).toBe("vision-mid");
     });
   }

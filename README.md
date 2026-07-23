@@ -26,7 +26,7 @@ a few seconds for a cold start.*
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 Point your existing OpenAI SDK at it instead of `api.openai.com`. It inspects each
-request, decides which model best fits the work (by cost, quality, latency, or a blend),
+request, decides which model best fits the work (best model, best value, or fastest),
 forwards to the right provider, and streams the response straight back. No client changes
 beyond the base URL.
 
@@ -86,7 +86,7 @@ For local dev, set `AUTH_ENABLED=false` and drop the header.
 curl http://localhost:8000/v1/chat/completions \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "X-Router-Strategy: cost" \
+  -H "X-Router-Strategy: value" \
   -d '{"model":"auto","messages":[{"role":"user","content":"hello"}]}' -i
 ```
 
@@ -144,8 +144,8 @@ can slot in behind the same interface without touching the hot path.
   goes over its **native Messages API**, the rest over their OpenAI-compatible endpoints,
   and adding a native adapter is one file (see [docs/transformers.md](docs/transformers.md)).
   Self-hosted / Ollama on the roadmap.
-- **Per-call control without breaking the schema.** Ask for `cost` on a batch job and
-  `quality` on a customer-facing path — via a header, body still a pristine OpenAI payload.
+- **Per-call control without breaking the schema.** Ask for `value` on a batch job and
+  `best` on a customer-facing path — via a header, body still a pristine OpenAI payload.
 - **A foundation you own.** Self-hosted, config-driven, OpenTelemetry throughout.
 - **A place to put a learned router.** The offline module is designed to consume your
   telemetry and improve routing over time.
@@ -248,35 +248,31 @@ Selection runs in three stages, and only the last one is weighted:
    across the candidate set** — so a weight means the same thing regardless of the rule's
    native units. (If every candidate ties on a rule, they all get `0.5`.)
 
-3. **Strategy-weighted sum.** The normalized scores are multiplied by the active strategy's
-   weight vector and summed. Highest total wins; ties break deterministically — by score,
-   then cheaper blended cost, then model id — so routing is reproducible. The dominant
-   contribution is surfaced in `X-Router-Reason`.
+3. **Frontier, then optimize** ([ADR 0017](docs/decisions/0017-frontier-then-optimize-strategies.md)).
+   The quality-family rules only (`complexity`, `reasoning_depth`, `task_type`/competency —
+   **not** cost or latency) form a **capability score `Q`**: *how good is this model for this
+   task?* The **frontier** is every model within `δ` (default 12%) of the top `Q`. Then the
+   strategy optimises **one** objective *within* the frontier — so price and speed never drag
+   down a genuinely-stronger model. `X-Router-Reason` reports which and why.
 
-A **strategy is just a weight vector** over the eight rules (`config/strategies.yaml`);
-weights are relative and need not sum to 1:
+A **strategy chooses the objective within the frontier** (`config/strategies.yaml`):
 
-| Rule | `balanced` | `cost` | `quality` | `latency` |
-| --- | --- | --- | --- | --- |
-| `complexity` | 2.0 | 0.0 | 3.0 | 0.5 |
-| `reasoning_depth` | 1.0 | 0.0 | 2.0 | 0.3 |
-| `task_type` | 1.0 | 0.0 | 1.5 | 0.3 |
-| `cost` | 1.0 | 3.0 | 0.1 | 0.5 |
-| `latency` | 0.5 | 0.5 | 0.1 | 3.0 |
-| `expected_output` | 0.3 | 1.0 | 0.3 | 0.3 |
-| `input_tokens` | 0.3 | 1.0 | 0.2 | 0.3 |
-| `data_sensitivity` | 0.3 | 0.0 | 0.3 | 0.3 |
+| Strategy | Optimises within the frontier | Intent |
+| --- | --- | --- |
+| `best` | max capability `Q` | the strongest model, price-blind |
+| `value` *(default)* | min blended cost | strongest that's also economical |
+| `fast` | min latency | soonest among the genuinely-capable |
 
-A design detail worth noting: the `cost` strategy zeroes the quality rules entirely. Under
-per-rule normalization, even a weight-`0.3` quality rule will tip hard prompts toward
-expensive models — so a *pure* cost objective has to switch them off, not just turn them
-down. Tuning weights is a config edit; adding a whole new criterion is one new rule file.
+Because `complexity` scores `tier·(2v−1)` — negative for high tier at low difficulty — `Q` is
+difficulty-aware for free: a trivial prompt's frontier is the *cheap* models, so even `best`
+won't overspend on "say hi". Cost/speed caps compose on top: `X-Router-Max-Cost` bounds price
+on any strategy. Adding a criterion is one new rule file; the frontier width `δ` is one knob.
 
 ### Control it with headers (never the body)
 
 | Header | Effect |
 | --- | --- |
-| `X-Router-Strategy: cost \| quality \| latency \| balanced` | Which objective to optimize |
+| `X-Router-Strategy: best \| value \| fast` | Objective within the capability frontier (default `value`) |
 | `X-Router-Bypass: true` | Skip routing; use the body's `model` verbatim |
 | `X-Router-Max-Cost: <usd per 1k>` | Cost ceiling |
 
@@ -300,7 +296,7 @@ that turns "is it any good?" into numbers — two ways, each honest about what i
 | Method | What it proves | Result |
 | --- | --- | --- |
 | **Provable gold cases** (`test/gold.test.ts`) | Requests whose correct target is *objectively determinable* (vision → vision model; pure-`cost` → cheapest; bypass → verbatim; audio → error) | **11/11** |
-| **Quality-judged accuracy** (`npm run eval:judge`) | For each prompt, a weak and a strong model both answer, an LLM judge decides whether the strong answer was *meaningfully* better, and the router's choice is scored against that ground truth | **83% accuracy · 0% over-routing · 17% under-routing** (balanced, 12-prompt set) |
+| **Quality-judged accuracy** (`npm run eval:judge`) | For each prompt, a weak and a strong model both answer, an LLM judge decides whether the strong answer was *meaningfully* better, and the router's choice is scored against that ground truth | **83% accuracy · 0% over-routing · 17% under-routing** (value, 12-prompt set) |
 
 Two honest limits on that judged number. It is **n=12**, so a single prompt moves it by 8
 points — treat it as a smoke test, not a benchmark. And the harness runs the *deterministic
@@ -363,7 +359,7 @@ counting, OpenTelemetry, run via `tsx`. The signal source is a pluggable `Signal
 | `.env` | Secrets — provider keys, optional per-model keys (gitignored; copy from `.env.example`). OAuth issuer/audience are non-secret and live here or in `server.yaml` |
 | `config/server.yaml` | Classifier, OTel, auth, provider endpoints |
 | `config/models.yaml` | Model catalog (cost, context, capabilities, tier, optional `api_key_env`) |
-| `config/strategies.yaml` | Strategy → weight vectors |
+| `config/strategies.yaml` | Capability weights, frontier width, per-strategy objective (ADR 0017) |
 | `sidecar/` | Optional RouteLLM signal sidecar (Python) — see its README |
 
 **Per-model keys** (optional): a model in `models.yaml` may set `api_key_env` to

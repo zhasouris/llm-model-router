@@ -20,12 +20,12 @@ import type {
   ScoredModel,
   Strategy,
 } from "../types.js";
-import { COMPETENCY_TASKS, MAX_TIER } from "../types.js";
+import { COMPETENCY_TASKS, MAX_TIER, type Objective } from "../types.js";
 import { makeAnalyze, type AnalyzeFn } from "./analysis.js";
 import { ALL_CONSTRAINTS } from "./constraints.js";
 import { detectRequirements } from "./detect.js";
 import { ALL_RULES } from "./extractors/rules.js";
-import { filterCandidates, scoreModels, topReason } from "./scoring.js";
+import { filterCandidates, frontierIds, scoreModels, selectByObjective, topReason } from "./scoring.js";
 import { LlmClassifierProvider } from "./signal.js";
 
 const tracer = trace.getTracer("router.core");
@@ -83,7 +83,7 @@ export class Router {
    * on the way as a fallback — that keeps the answer useful *and* honest about
    * what the raw scoring preferred.
    */
-  private pickRoutable(ranked: ScoredModel[], strategy: Strategy): {
+  private pickRoutable(ranked: ScoredModel[], strategy: Strategy, objective: Objective): {
     top: ScoredModel;
     reason: string;
     warnings: string[];
@@ -100,13 +100,13 @@ export class Router {
         top,
         // Reasons are emitted as an HTTP header (X-Router-Reason), so keep them
         // plain ASCII rather than relying on the header-safety fold.
-        reason: `${topReason(top, strategy)} - unroutable: no API key for ${top.model.provider}`,
+        reason: `${topReason(top, strategy, objective)} - unroutable: no API key for ${top.model.provider}`,
         warnings,
       };
     }
 
     const top = ranked[idx]!;
-    if (idx === 0) return { top, reason: topReason(top, strategy), warnings };
+    if (idx === 0) return { top, reason: topReason(top, strategy, objective), warnings };
 
     const skipped = ranked.slice(0, idx);
     const best = skipped[0]!;
@@ -119,7 +119,7 @@ export class Router {
     return {
       top,
       reason:
-        `${topReason(top, strategy)} - best routable; ` +
+        `${topReason(top, strategy, objective)} - best routable; ` +
         `${best.model.id} scored higher (${best.score.toFixed(2)}) but no API key for ${providers}`,
       warnings,
     };
@@ -172,9 +172,14 @@ export class Router {
         );
       }
 
-      const weights = this.config.strategies[req.options.strategy] ?? {};
-      const ranked = scoreModels(candidates, ALL_RULES, analysis.features, weights);
-      const picked = this.pickRoutable(ranked, req.options.strategy);
+      // Frontier-then-optimize (ADR 0017): score capability Q, take the top
+      // cluster, then optimize the strategy's objective within it.
+      const objective = this.config.routing.objectives[req.options.strategy] ?? "capability";
+      const scored = scoreModels(
+        candidates, ALL_RULES, analysis.features, this.config.routing.capabilityWeights,
+      );
+      const ranked = selectByObjective(scored, objective, this.config.routing.frontierDelta);
+      const picked = this.pickRoutable(ranked, req.options.strategy, objective);
       const top = picked.top;
 
       const warnings = [...req.options.warnings, ...picked.warnings];
@@ -243,6 +248,7 @@ export class Router {
       const modelId = req.body.model ?? "";
       return {
         strategy: req.options.strategy,
+        objective: this.config.routing.objectives[req.options.strategy] ?? "capability",
         bypassed: true,
         detected,
         inputTokens: 0,
@@ -276,8 +282,14 @@ export class Router {
         ),
       }));
 
-    const weights = this.config.strategies[req.options.strategy] ?? {};
-    const scored = scoreModels(eligibleModels, ALL_RULES, analysis.features, weights);
+    // Frontier-then-optimize (ADR 0017): capability Q, then the strategy's
+    // objective within the top cluster. `inFrontier` is surfaced per model.
+    const objective = this.config.routing.objectives[req.options.strategy] ?? "capability";
+    const scoredRaw = scoreModels(
+      eligibleModels, ALL_RULES, analysis.features, this.config.routing.capabilityWeights,
+    );
+    const inFrontier = frontierIds(scoredRaw, this.config.routing.frontierDelta);
+    const scored = selectByObjective(scoredRaw, objective, this.config.routing.frontierDelta);
     const outTokens = analysis.classifier.expectedOutputTokens;
     // Trace the number that drove the task_type rule: the model's provenanced
     // competency for the detected task, or a tier-derived fallback (ADR 0010).
@@ -302,6 +314,7 @@ export class Router {
       provider: s.model.provider,
       tier: s.model.tier,
       score: Number(s.score.toFixed(4)),
+      frontier: inFrontier.has(s.model.id),
       breakdown: s.breakdown,
       competency: taskCompetency(s.model),
       estimatedCost: Number(
@@ -315,7 +328,7 @@ export class Router {
     // Same choice the forwarding path would make, so the inspector reports the
     // model that would really be called — while `ranked` still lists everything,
     // including the higher-scoring entries that were skipped for want of a key.
-    const picked = scored.length ? this.pickRoutable(scored, req.options.strategy) : null;
+    const picked = scored.length ? this.pickRoutable(scored, req.options.strategy, objective) : null;
 
     const warnings = [...req.options.warnings, ...(picked?.warnings ?? [])];
     if (analysis.classifier.degraded) {
@@ -324,6 +337,7 @@ export class Router {
 
     return {
       strategy: req.options.strategy,
+      objective,
       bypassed: false,
       detected,
       inputTokens: analysis.inputTokens,
@@ -358,6 +372,8 @@ export interface TaskCompetency {
 
 export interface ExplainResult {
   strategy: Strategy;
+  /** What the strategy optimizes within the frontier (ADR 0017). */
+  objective: Objective;
   /** True when a model was forced via bypass (routing skipped). */
   bypassed: boolean;
   detected: {
@@ -378,6 +394,8 @@ export interface ExplainResult {
     provider: string;
     tier: number;
     score: number;
+    /** In the capability frontier for this task (ADR 0017)? */
+    frontier: boolean;
     breakdown: Record<string, number>;
     competency: TaskCompetency | null;
     estimatedCost: number;

@@ -76,8 +76,11 @@ export const openApiSpec = {
             name: "X-Router-Strategy",
             in: "header",
             required: false,
-            schema: { type: "string", enum: ["cost", "quality", "latency", "balanced"] },
-            description: "Optimization to favor. Unknown values fail soft to the default.",
+            schema: { type: "string", enum: ["best", "value", "fast"] },
+            description:
+              "Objective within the capability frontier (ADR 0017): best = strongest model; " +
+              "value (default) = cheapest in the frontier; fast = fastest in it. Unknown values " +
+              "fail soft to the default.",
           },
           {
             name: "X-Router-Bypass",
@@ -226,8 +229,11 @@ export const openApiSpec = {
             name: "X-Router-Strategy",
             in: "header",
             required: false,
-            schema: { type: "string", enum: ["cost", "quality", "latency", "balanced"] },
-            description: "Optimization to favor. Unknown values fail soft to the default.",
+            schema: { type: "string", enum: ["best", "value", "fast"] },
+            description:
+              "Objective within the capability frontier (ADR 0017): best = strongest model; " +
+              "value (default) = cheapest in the frontier; fast = fastest in it. Unknown values " +
+              "fail soft to the default.",
           },
           {
             name: "X-Router-Bypass",

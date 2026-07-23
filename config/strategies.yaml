@@ -1,52 +1,23 @@
-# Strategy weight vectors. A strategy is a set of weights over the scoring rules
-# (ADR 0003). The weighted sum of each rule's per-model score decides the winner.
-# Weights need not sum to 1 — they are relative. Rule keys must match the
-# `name` of a registered feature rule (see src/core/extractors/).
+# Frontier-then-optimize routing (ADR 0017). One shared capability score `Q`
+# builds the top cluster (frontier) for the task; each strategy then optimizes a
+# single objective WITHIN that frontier. There are no per-strategy weighted sums.
 
+# Capability weights — the "how good is this model for this task" score Q.
+# Quality-family rules only; cost/latency are deliberately NOT in Q (that is the
+# whole point — capability is decided before price/speed).
+capability_weights:
+  complexity: 3.0
+  reasoning_depth: 2.0
+  task_type: 3.0 # per-task competency (ADR 0010) — the core quality signal
+  data_sensitivity: 0.3
+
+# Frontier (top cluster) width: a model is in the frontier when
+# Q >= Q_max * (1 - frontier_delta). Tight → value/fast ≈ best; loose → they may
+# trade a little capability for savings/speed. The one tuning knob.
+frontier_delta: 0.12
+
+# Each strategy → the objective it optimizes within the frontier.
 strategies:
-  # Quality-family (complexity/reasoning/task_type) is weighted to outvote the
-  # cheap-family on hard prompts, while cost still dominates on easy ones. The
-  # cost proxies (input_tokens/expected_output score by per-1k price) are kept
-  # low so cost isn't triple-counted. See strategies note above.
-  balanced:
-    complexity: 2.0
-    reasoning_depth: 1.0
-    task_type: 1.0
-    cost: 1.0
-    latency: 0.5
-    expected_output: 0.3
-    input_tokens: 0.3
-    data_sensitivity: 0.3
-
-  # A pure cost strategy ignores quality signals entirely — otherwise, under
-  # per-rule normalization, even weight-0.3 quality rules tip hard prompts to
-  # expensive models and cost collapses onto balanced.
-  cost:
-    cost: 3.0
-    input_tokens: 1.0
-    expected_output: 1.0
-    latency: 0.5
-    complexity: 0.0
-    reasoning_depth: 0.0
-    task_type: 0.0
-    data_sensitivity: 0.0
-
-  quality:
-    complexity: 3.0
-    reasoning_depth: 2.0
-    task_type: 1.5
-    cost: 0.1
-    latency: 0.1
-    expected_output: 0.3
-    input_tokens: 0.2
-    data_sensitivity: 0.3
-
-  latency:
-    latency: 3.0
-    cost: 0.5
-    complexity: 0.5
-    reasoning_depth: 0.3
-    expected_output: 0.3
-    input_tokens: 0.3
-    task_type: 0.3
-    data_sensitivity: 0.3
+  best: capability # the frontier top — strongest model, price-blind
+  value: cost # cheapest model in the frontier
+  fast: latency # fastest model in the frontier

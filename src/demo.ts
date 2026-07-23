@@ -40,7 +40,7 @@ export function loadPresets(): Preset[] {
         return {
           id: g.id as string,
           label: (g.note as string) || (g.id as string),
-          strategy: (g.strategy as string) || "balanced",
+          strategy: (g.strategy as string) || "value",
           prompt,
           bypass: Boolean(g.bypass),
           body: g.request,
@@ -167,10 +167,9 @@ export function demoHtml(
       <div class="row">
         <label>Strategy
           <select id="strategy">
-            <option value="balanced">balanced</option>
-            <option value="cost">cost</option>
-            <option value="quality">quality</option>
-            <option value="latency">latency</option>
+            <option value="value">value</option>
+            <option value="best">best</option>
+            <option value="fast">fast</option>
           </select>
         </label>
         <label>Force model
@@ -270,7 +269,7 @@ export function demoHtml(
       'Excludes the upstream model call.">' + esc(data.routingMs) + ' ms</span>';
   }
 
-  // Which signal provider ran — varies by strategy (ADR 0012). latency uses a
+  // Which signal provider ran — varies by strategy (ADR 0012). fast uses a
   // fast provider (heuristic ~0ms or RouteLLM ~250ms), the rest the classifier.
   function signalSource(data, c) {
     var p = data.signalProvider || (c.degraded ? 'heuristic' : 'llm-classifier');

@@ -47,7 +47,7 @@ function buildRequest(gc: GoldCase): RoutingRequest {
   return {
     body: gc.request,
     options: {
-      strategy: gc.strategy ?? "balanced",
+      strategy: gc.strategy ?? "value",
       bypass: gc.bypass ?? false,
       maxCost: null,
       warnings: [],

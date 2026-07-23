@@ -57,7 +57,7 @@ export function makeRequest(
   return {
     body: opts.body ?? { messages: [{ role: "user", content: "hi" }] },
     options: {
-      strategy: opts.strategy ?? "balanced",
+      strategy: opts.strategy ?? "value",
       bypass: opts.bypass ?? false,
       maxCost: null,
       warnings: [],

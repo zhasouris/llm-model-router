@@ -12,26 +12,26 @@ function getter(headers: Record<string, string>) {
 
 describe("header contract", () => {
   it("unknown strategy fails soft", () => {
-    const opts = parseOptions(getter({ "X-Router-Strategy": "bogus" }), "balanced");
-    expect(opts.strategy).toBe("balanced");
+    const opts = parseOptions(getter({ "X-Router-Strategy": "bogus" }), "value");
+    expect(opts.strategy).toBe("value");
     expect(opts.warnings.some((w) => w.includes("unknown strategy"))).toBe(true);
   });
 
   it("known strategy parses", () => {
-    const opts = parseOptions(getter({ "x-router-strategy": "cost" }), "balanced");
-    expect(opts.strategy).toBe("cost");
+    const opts = parseOptions(getter({ "x-router-strategy": "value" }), "value");
+    expect(opts.strategy).toBe("value");
     expect(opts.warnings).toHaveLength(0);
   });
 
   it("bypass truthiness", () => {
-    expect(parseOptions(getter({ "X-Router-Bypass": "true" }), "balanced").bypass).toBe(true);
-    expect(parseOptions(getter({ "X-Router-Bypass": "no" }), "balanced").bypass).toBe(false);
+    expect(parseOptions(getter({ "X-Router-Bypass": "true" }), "value").bypass).toBe(true);
+    expect(parseOptions(getter({ "X-Router-Bypass": "no" }), "value").bypass).toBe(false);
   });
 
   it("control headers are stripped", () => {
     const out = stripControlHeaders({
       Authorization: "Bearer x",
-      "X-Router-Strategy": "cost",
+      "X-Router-Strategy": "value",
       "X-Router-Bypass": "true",
       "Content-Type": "application/json",
     });

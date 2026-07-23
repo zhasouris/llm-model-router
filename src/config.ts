@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { CAPABILITIES, STRATEGIES, TASK_TYPES, type Capability, type CompetencyEntry, type ModelDescriptor } from "./types.js";
+import { CAPABILITIES, OBJECTIVES, STRATEGIES, TASK_TYPES, type Capability, type CompetencyEntry, type ModelDescriptor, type Objective } from "./types.js";
 
 // Resolved at call time (not import time) so tests can point at fixtures.
 function configDir(): string {
@@ -26,7 +26,7 @@ const providerSchema = z.object({
 });
 
 const serverSchema = z.object({
-  default_strategy: z.enum(STRATEGIES).default("balanced"),
+  default_strategy: z.enum(STRATEGIES).default("value"),
   // OAuth 2.0 client-credentials resource-server validation (ADR 0015).
   // `enabled: false` opens /v1 for local dev. When enabled, every /v1 request
   // must carry a valid JWT: signed by the issuer's JWKS, `iss`/`aud` matching,
@@ -91,8 +91,12 @@ const serverSchema = z.object({
     .default({}),
 });
 
+// Frontier-then-optimize routing config (ADR 0017): shared capability weights,
+// the frontier width, and each strategy's objective.
 const strategiesSchema = z.object({
-  strategies: z.record(z.record(z.number())),
+  capability_weights: z.record(z.number()),
+  frontier_delta: z.number().min(0).max(1).default(0.12),
+  strategies: z.record(z.enum(OBJECTIVES)),
 });
 
 const modelSchema = z.object({
@@ -124,9 +128,18 @@ const competencySchema = z.object({
 
 export type ServerConfig = z.infer<typeof serverSchema>;
 
+export interface RoutingConfig {
+  /** Capability-score (Q) weights, shared across strategies (ADR 0017). */
+  capabilityWeights: Record<string, number>;
+  /** Frontier width: a model is in the frontier when Q >= Q_max * (1 - delta). */
+  frontierDelta: number;
+  /** Each strategy's objective within the frontier. */
+  objectives: Record<string, Objective>;
+}
+
 export interface AppConfig {
   server: ServerConfig;
-  strategies: Record<string, Record<string, number>>;
+  routing: RoutingConfig;
   catalog: ModelDescriptor[];
   secrets: {
     classifierApiKey?: string;
@@ -234,10 +247,10 @@ export function getConfig(): AppConfig {
   const strategyBook = strategiesSchema.parse(loadYaml("strategies.yaml"));
   const catalogRaw = catalogSchema.parse(loadYaml("models.yaml"));
 
-  // Cross-validation (fail fast).
+  // Cross-validation (fail fast): every strategy needs a frontier objective.
   for (const s of STRATEGIES) {
     if (!strategyBook.strategies[s]) {
-      throw new Error(`strategies.yaml missing weight vector for: ${s}`);
+      throw new Error(`strategies.yaml missing objective for strategy: ${s}`);
     }
   }
   const ids = catalogRaw.models.map((m) => m.id);
@@ -284,7 +297,11 @@ export function getConfig(): AppConfig {
 
   cached = {
     server,
-    strategies: strategyBook.strategies,
+    routing: {
+      capabilityWeights: strategyBook.capability_weights,
+      frontierDelta: strategyBook.frontier_delta,
+      objectives: strategyBook.strategies,
+    },
     catalog,
     secrets: {
       // `|| undefined` so an empty env var (e.g. `CLASSIFIER_API_KEY=`) is

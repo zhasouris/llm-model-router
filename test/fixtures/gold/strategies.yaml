@@ -1,39 +1,23 @@
-# Mirrors config/strategies.yaml so the gold tests exercise the real weights
-# against the fixed gold catalog.
+# Frontier-then-optimize routing (ADR 0017). One shared capability score `Q`
+# builds the top cluster (frontier) for the task; each strategy then optimizes a
+# single objective WITHIN that frontier. There are no per-strategy weighted sums.
+
+# Capability weights — the "how good is this model for this task" score Q.
+# Quality-family rules only; cost/latency are deliberately NOT in Q (that is the
+# whole point — capability is decided before price/speed).
+capability_weights:
+  complexity: 3.0
+  reasoning_depth: 2.0
+  task_type: 3.0 # per-task competency (ADR 0010) — the core quality signal
+  data_sensitivity: 0.3
+
+# Frontier (top cluster) width: a model is in the frontier when
+# Q >= Q_max * (1 - frontier_delta). Tight → value/fast ≈ best; loose → they may
+# trade a little capability for savings/speed. The one tuning knob.
+frontier_delta: 0.12
+
+# Each strategy → the objective it optimizes within the frontier.
 strategies:
-  balanced:
-    complexity: 2.0
-    reasoning_depth: 1.0
-    task_type: 1.0
-    cost: 1.0
-    latency: 0.5
-    expected_output: 0.3
-    input_tokens: 0.3
-    data_sensitivity: 0.3
-  cost:
-    cost: 3.0
-    input_tokens: 1.0
-    expected_output: 1.0
-    latency: 0.5
-    complexity: 0.0
-    reasoning_depth: 0.0
-    task_type: 0.0
-    data_sensitivity: 0.0
-  quality:
-    complexity: 3.0
-    reasoning_depth: 2.0
-    task_type: 1.5
-    cost: 0.1
-    latency: 0.1
-    expected_output: 0.3
-    input_tokens: 0.2
-    data_sensitivity: 0.3
-  latency:
-    latency: 3.0
-    cost: 0.5
-    complexity: 0.5
-    reasoning_depth: 0.3
-    expected_output: 0.3
-    input_tokens: 0.3
-    task_type: 0.3
-    data_sensitivity: 0.3
+  best: capability # the frontier top — strongest model, price-blind
+  value: cost # cheapest model in the frontier
+  fast: latency # fastest model in the frontier
