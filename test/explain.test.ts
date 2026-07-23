@@ -99,6 +99,16 @@ describe("/v1/router/explain + /demo", () => {
     expect(html).toContain("gpt-4.1-nano");
   });
 
+  it("shows the cold-start banner only when the hint is set", async () => {
+    const { demoHtml } = await import("../src/demo.js");
+    const NEEDLE = "First request may take a few seconds";
+
+    expect(demoHtml([], [], { coldStartHint: true })).toContain(NEEDLE);
+    expect(demoHtml([], [], { coldStartHint: false })).not.toContain(NEEDLE);
+    // Default is off — an always-on runtime must not warn about a cold start.
+    expect(demoHtml([], [])).not.toContain(NEEDLE);
+  });
+
   it("explains a request as JSON WITHOUT a proxy key (demo endpoint is unauthenticated)", async () => {
     const app = createApp(deps());
     const res = await app.request("/v1/router/explain", {

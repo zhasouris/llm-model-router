@@ -155,7 +155,13 @@ export function createApp(deps: AppDeps = buildDeps()): Hono {
     const presets = loadPresets();
     // Recomputed per request: keys come from the environment, so availability
     // can change on a container restart without the page being rebuilt.
-    app.get("/demo", (c) => c.html(demoHtml(presets, modelAvailability())));
+    app.get("/demo", (c) =>
+      c.html(
+        demoHtml(presets, modelAvailability(), {
+          coldStartHint: config.server.demo.cold_start_hint,
+        }),
+      ),
+    );
 
     app.post("/v1/router/explain", async (c) => {
       let raw: Record<string, unknown>;

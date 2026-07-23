@@ -43,6 +43,12 @@ describe("env overrides", () => {
     expect(load().demo.enabled).toBe(false);
   });
 
+  it("cold-start hint is off by default and toggles via env", () => {
+    expect(load().demo.cold_start_hint).toBe(false);
+    process.env.DEMO_COLD_START_HINT = "true";
+    expect(load().demo.cold_start_hint).toBe(true);
+  });
+
   it("turns the Azure Monitor exporter on", () => {
     process.env.AZURE_MONITOR_ENABLED = "true";
     expect(load().telemetry.azure_monitor.enabled).toBe(true);

@@ -39,7 +39,15 @@ const serverSchema = z.object({
     .default({}),
   providers: z.record(providerSchema),
   // The /demo decision-inspector page + /v1/router/explain endpoint.
-  demo: z.object({ enabled: z.boolean().default(true) }).default({}),
+  demo: z
+    .object({
+      enabled: z.boolean().default(true),
+      // Show a "first request may be slow" banner. Set by deployments that
+      // scale to zero (Azure `minReplicas: 0`), where a cold start adds a few
+      // seconds to the first request after idle. Off for always-on runtimes.
+      cold_start_hint: z.boolean().default(false),
+    })
+    .default({}),
   // RouteLLM sidecar (ADR 0006) — surfaced as a shadow signal in the demo.
   routellm: z
     .object({
@@ -122,6 +130,9 @@ function boolEnv(name: string): boolean | undefined {
 function applyEnvOverrides(server: ServerConfig): ServerConfig {
   const demo = boolEnv("DEMO_ENABLED");
   if (demo !== undefined) server.demo.enabled = demo;
+
+  const coldStart = boolEnv("DEMO_COLD_START_HINT");
+  if (coldStart !== undefined) server.demo.cold_start_hint = coldStart;
 
   const consoleExport = boolEnv("OTEL_CONSOLE_EXPORT");
   if (consoleExport !== undefined) server.telemetry.console_export = consoleExport;

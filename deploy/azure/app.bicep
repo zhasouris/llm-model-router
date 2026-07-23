@@ -150,6 +150,12 @@ var baseEnv = [
     value: string(demoEnabled)
   }
   {
+    // Show the cold-start banner exactly when the app can scale to zero, since
+    // that is the only case where a first request actually waits on a wake-up.
+    name: 'DEMO_COLD_START_HINT'
+    value: string(minReplicas == 0)
+  }
+  {
     name: 'ROUTELLM_ENABLED'
     value: string(routellmEnabled)
   }

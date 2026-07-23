@@ -57,7 +57,16 @@ export interface DemoModel {
   available: boolean;
 }
 
-export function demoHtml(presets: Preset[], models: DemoModel[] = []): string {
+export interface DemoOptions {
+  /** Show a cold-start notice — set on scale-to-zero deployments. */
+  coldStartHint?: boolean;
+}
+
+export function demoHtml(
+  presets: Preset[],
+  models: DemoModel[] = [],
+  opts: DemoOptions = {},
+): string {
   const presetsJson = JSON.stringify(presets).replace(/</g, "\\u003c");
   const availabilityJson = JSON.stringify(
     Object.fromEntries(models.map((m) => [m.id, m.available])),
@@ -91,6 +100,8 @@ export function demoHtml(presets: Preset[], models: DemoModel[] = []): string {
     margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; }
   h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
   .sub { opacity: 0.7; margin-top: 0; font-size: 0.9rem; }
+  .coldstart { border: 1px solid #d9770633; background: #d977061a; border-radius: 8px;
+    padding: 0.6rem 0.9rem; margin: 0.75rem 0 0; font-size: 0.88rem; }
   .layout { display: flex; gap: 1.25rem; align-items: flex-start; }
   .sidebar { width: 260px; flex-shrink: 0; }
   .main { flex: 1; min-width: 0; }
@@ -139,6 +150,11 @@ export function demoHtml(presets: Preset[], models: DemoModel[] = []): string {
 <body>
   <h1>Router decision inspector</h1>
   <p class="sub">Submit a prompt — or click a gold preset — to see how the router would route it. No completion is run.</p>
+  ${
+    opts.coldStartHint
+      ? `<div class="coldstart">⏳ <b>First request may take a few seconds.</b> This demo scales to zero when idle, so the very first inspection after a quiet spell waits for the container to wake up. Everything after that is fast.</div>`
+      : ""
+  }
 
   <div class="layout">
     <aside class="sidebar">
