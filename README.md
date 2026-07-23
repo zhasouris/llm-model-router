@@ -78,8 +78,9 @@ docker compose --profile routellm up -d --build   # + the RouteLLM sidecar
 ```
 
 Call it exactly like the OpenAI API — just add a routing header. `$ACCESS_TOKEN` is an
-OAuth 2.0 client-credentials JWT from your IdP ([ADR 0015](docs/decisions/0015-client-credentials-auth.md));
-for local dev, set `auth.enabled: false` in `config/server.yaml` and drop the header.
+OAuth 2.0 client-credentials JWT from your IdP — see
+[**Configuring OAuth**](docs/help/oauth.md) ([ADR 0015](docs/decisions/0015-client-credentials-auth.md)).
+For local dev, set `AUTH_ENABLED=false` and drop the header.
 
 ```bash
 curl http://localhost:8000/v1/chat/completions \

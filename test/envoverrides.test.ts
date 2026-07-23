@@ -49,6 +49,24 @@ describe("env overrides", () => {
     expect(load().demo.cold_start_hint).toBe(true);
   });
 
+  it("toggles the OAuth check via AUTH_ENABLED", () => {
+    // The fixture leaves auth.enabled at its file value; the env override wins.
+    process.env.AUTH_ENABLED = "false";
+    expect(load().auth.enabled).toBe(false);
+    process.env.AUTH_ENABLED = "true";
+    expect(load().auth.enabled).toBe(true);
+  });
+
+  it("sets the OAuth issuer/audience/scope from the environment", () => {
+    process.env.AUTH_ISSUER = "https://issuer.example/";
+    process.env.AUTH_AUDIENCE = "api://x";
+    process.env.AUTH_REQUIRED_SCOPE = "router.invoke";
+    const a = load().auth;
+    expect(a.issuer).toBe("https://issuer.example/");
+    expect(a.audience).toBe("api://x");
+    expect(a.required_scope).toBe("router.invoke");
+  });
+
   it("turns the Azure Monitor exporter on", () => {
     process.env.AZURE_MONITOR_ENABLED = "true";
     expect(load().telemetry.azure_monitor.enabled).toBe(true);

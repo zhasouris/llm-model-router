@@ -13,6 +13,7 @@ default_strategy: balanced
 auth:
   # false = open (local dev only). true + no issuer = fail-closed (every /v1
   # request is 401) — this is how the demo-only deployment stays closed.
+  # Toggle from the environment without rebuilding via AUTH_ENABLED=true|false.
   enabled: true
   issuer: "" # e.g. https://login.example.com/  — iss must match; JWKS discovered here
   audience: "" # e.g. api://corgi-ai-gateway    — aud must match
