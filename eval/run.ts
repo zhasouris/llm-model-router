@@ -1,7 +1,7 @@
 /**
  * Eval CLI (dry-run). Hermetic — uses the deterministic heuristic provider.
  *
- *   npm run eval -- --dataset eval/datasets/curated.jsonl --strategies cost,quality
+ *   npm run eval -- --dataset eval/datasets/curated.jsonl --strategies best,value
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";

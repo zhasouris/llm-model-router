@@ -11,6 +11,7 @@
     "start": "tsx src/index.ts",
     "eval": "tsx eval/run.ts",
     "eval:judge": "tsx eval/judge-run.ts",
+    "eval:baseline": "tsx eval/baseline-run.ts",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"

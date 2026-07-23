@@ -52,10 +52,34 @@ promoting a learned signal (ADR 0006) and for the offline ML loop ([ADR 0005](de
 
 ### Baselines (compare every run against)
 
-- `always-cheapest`, `always-strongest`, `random`, and each **strategy** (`cost`,
-  `quality`, `latency`, `balanced`). Baselines are the yardstick — a router only "wins" if
-  it beats always-strong on cost at comparable quality, or always-cheap on quality at
-  comparable cost.
+- `always-cheapest`, `always-strongest`, `random`, and each **strategy** (`best`, `value`,
+  `fast`). Baselines are the yardstick — a router only "wins" if it beats always-strong on
+  cost at comparable quality, or always-cheap on quality at comparable cost.
+
+### Base-model delta report (`npm run eval:baseline`)
+
+Reframes the comparison the way an adopter thinks: *vs. defaulting to one model, what did
+routing save and where did it get sharper?* Pick a base model (the status-quo default) and,
+for each of `best`/`value`/`fast`, diff every pick against **always-base** — as **two
+distinct KPIs**, never blended:
+
+- **Cost** — net % vs always-base, split into cost Δ on downgrades vs upgrades.
+- **Targeted accuracy** — router − base on the **task-appropriate benchmark** (SWE-bench for
+  coding, AIME for math, GPQA for reasoning; from `docs/process/model-scores.json`) and
+  per-task competency (ADR 0010), **segmented by whether the prompt needed accuracy** (hard)
+  vs not — so "accuracy where you need it" is explicit.
+
+Each pick is classified `upgrade` / `downgrade` / `forced-upgrade` (base can't serve the
+prompt) / `unchanged` by task competency vs the base.
+
+```bash
+npm run eval:baseline -- --base gpt-4.1-mini --dataset eval/datasets/curated.jsonl
+```
+
+The base you choose sets the story: a **weak** default (`gpt-4.1-mini`) shows the router is
+cheaper *and* sharper almost everywhere; a **strong** default (`o3`) shows large savings with
+a small, *measured* accuracy give-up on hard prompts — the exact trade-off, made visible.
+A third lens (real LLM-judged accuracy on a sample) is a planned add, reusing `judge.ts`.
 
 ### Shadow comparison (the ADR 0006 gate)
 
