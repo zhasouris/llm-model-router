@@ -1,6 +1,7 @@
 # ADR 0014 — Official .NET Client (RouterClient) and Its Router-Side Prerequisites
 
-- **Status:** Proposed (plan; the client is a separate codebase, pending a project reorg)
+- **Status:** Proposed (plan; the client is a separate codebase). Includes the
+  distribution & repository-topology decision (polyrepo; versioned contract, not co-bundled binaries).
 - **Date:** 2026-07-23
 - **Context repo:** `llm-model-router` — this ADR records the **router-side** commitments
   (R1–R4). The client itself (`RouterClient`, a .NET package set) lives in its own
@@ -72,6 +73,54 @@ locally fetched catalog, but that duplicates pricing logic in two places and wil
 truth — the same failure mode ADR 0010 flags for competency metadata and ADR 0009 for
 region/retention. The router already knows the number; it should emit it. If R3 slips, the
 client implements a clearly-labelled *estimate* behind an interface so the swap is trivial.
+
+### Distribution & repository topology
+
+There will be **multiple language-specific clients** (.NET first, then TypeScript and Python).
+How they ship, and how they stay in step with the server, is decided here so every future
+client follows the same rule.
+
+**Clients and the server are separate artifacts, published to their native channels — never
+co-bundled as combined "release binaries."** They are consumed by different roles, through
+different registries, at different times:
+
+| Component | Ships as | Installed by |
+|---|---|---|
+| Server (`llm-model-router`) | Docker image (already), optionally a standalone binary | whoever *operates* the router |
+| .NET client | NuGet package | an app *developer* (`dotnet add package`) |
+| TypeScript client | npm package | `npm install` |
+| Python client | PyPI package | `pip install` |
+
+Co-packaging a NuGet artifact with a container image does not match how either is installed —
+the operator and the developer are frequently different people who never interact. Bundling
+would only ship a version mismatch together, not prevent one.
+
+**The real coupling — contract drift — is solved by a versioned contract, not co-distribution:**
+
+- The `X-Router-*` header contract ([ADR 0002](0002-router-header-contract.md)) is versioned as
+  a **Router Protocol version**. The server advertises the version it speaks; each client
+  declares the minimum it requires.
+- The contract is published as a **machine-readable spec** — the server already emits OpenAPI
+  documenting the `X-Router-*` headers (`src/openapi.ts`); it is extended to fully specify
+  R1–R4 and versioned. Clients validate/generate against that one spec.
+- A **language-neutral conformance suite** (request/response fixtures over the headers) is run
+  in CI by the server *and every client*. That — not bundling — is what keeps N clients honest,
+  and it matches the eval harness's "prove it, don't assert it" posture.
+
+**Repository topology: polyrepo — each client in its own repository**, not a monorepo. The
+server's header contract is deliberately stable (ADR 0002 is Accepted), which removes the
+monorepo's one real advantage (atomic cross-client changes for a churning contract) while the
+polyrepo keeps each client native to its ecosystem: a .NET repo *is* a .NET repo, publishing to
+NuGet is trivial without path-scoped release plumbing, and each package links to a focused repo
+rather than a large polyglot one. A mixed-language monorepo (Node + .NET + Python CI and
+triple-registry publishing) is a real tax paid for a benefit a stable contract does not need.
+
+The "read as one stack" goal (§9 of the plan) is met without a monorepo: a shared GitHub org,
+cross-linked READMEs, and the versioned contract spec as the common spine.
+
+> **Revisit trigger.** If the protocol starts changing often enough that keeping N client repos
+> in lockstep becomes the dominant cost, the monorepo trade flips. This chooses polyrepo on
+> *today's* stable-contract reality, not permanently.
 
 ## Consequences
 
